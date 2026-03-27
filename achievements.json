@@ -1,0 +1,41 @@
+[
+  {
+    "name": "Первые шаги",
+    "description": "Отправить первое решение",
+    "condition_type": "submissions",
+    "condition_value": 1,
+    "category": "course",
+    "rarity": "common",
+    "xp_reward": 10,
+    "points_reward": 5,
+    "icon_url": "/icons/first-steps.png",
+    "is_secret": false,
+    "order_index": 1
+  },
+  {
+    "name": "Усердный ученик",
+    "description": "Отправить 50 решений",
+    "condition_type": "submissions",
+    "condition_value": 50,
+    "category": "course",
+    "rarity": "rare",
+    "xp_reward": 100,
+    "points_reward": 50,
+    "icon_url": "/icons/hard-worker.png",
+    "is_secret": false,
+    "order_index": 2
+  },
+  {
+    "name": "Мастер кода",
+    "description": "Отправить 200 решений",
+    "condition_type": "submissions",
+    "condition_value": 200,
+    "category": "course",
+    "rarity": "epic",
+    "xp_reward": 500,
+    "points_reward": 200,
+    "icon_url": "/icons/code-master.png",
+    "is_secret": false,
+    "order_index": 3
+  }
+]
