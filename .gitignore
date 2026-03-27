@@ -5,6 +5,7 @@ __pycache__/
 *.pyd
 
 .idea 
+.env
 
 # Virtual env
 .venv/
