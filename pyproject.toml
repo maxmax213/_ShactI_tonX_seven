@@ -1,3 +1,7 @@
+[build-system]
+requires = ["setuptools>=69", "wheel"]
+build-backend = "setuptools.build_meta"
+
 [project]
 name = "hacaton"
 version = "0.1.0"
@@ -5,10 +9,23 @@ description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
-    "dotenv>=0.9.9",
+    "bcrypt<5",
+    "python-dotenv>=1.0.1",
+    "email-validator>=2.3.0",
     "fastapi>=0.135.2",
-    "psycopg2>=2.9.11",
+    "passlib[bcrypt]>=1.7.4",
+    "python-jose[cryptography]>=3.5.0",
+    "psycopg2-binary>=2.9.11",
     "pydantic>=2.12.5",
+    "python-multipart>=0.0.20",
     "sqlalchemy>=2.0.48",
     "uvicorn>=0.42.0",
 ]
+
+[tool.setuptools]
+include-package-data = false
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["app*"]
+exclude = ["scripts*", "seed*", "frontend*", "DataBase*", "docs*", "infra*"]
