@@ -32,6 +32,7 @@ type MainTab = "learning" | "leaderboard";
 type LearningView = "catalog" | "course" | "lesson";
 type LessonTab = "theory_test" | "assignment";
 type TestAnswerValue = string | string[] | boolean | null;
+type LeaderboardPeriod = "all_time" | "month" | "week" | "today";
 
 interface ParsedTestQuestion {
   id: string;
@@ -190,6 +191,38 @@ function clamp(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, value));
 }
 
+function compareLeaderboardEntries(a: LeaderboardEntry, b: LeaderboardEntry): number {
+  if (b.xp !== a.xp) return b.xp - a.xp;
+  if (b.streak !== a.streak) return b.streak - a.streak;
+  return a.full_name.localeCompare(b.full_name, "ru");
+}
+
+function formatDays(value: number): string {
+  const abs = Math.abs(value) % 100;
+  const last = abs % 10;
+
+  if (abs >= 11 && abs <= 19) return `${value} дней`;
+  if (last === 1) return `${value} день`;
+  if (last >= 2 && last <= 4) return `${value} дня`;
+  return `${value} дней`;
+}
+
+function leaderboardMedalLabel(rank: number): string {
+  if (rank === 1) return "gold";
+  if (rank === 2) return "silver";
+  return "bronze";
+}
+
+const LEVEL_ICON = "\u2605";
+const ACHIEVEMENT_ICON = "\u{1F3C5}";
+const PODIUM_MEDALS = ["\u{1F947}", "\u{1F948}", "\u{1F949}"] as const;
+const LEADERBOARD_PERIODS: Array<{ value: LeaderboardPeriod; label: string }> = [
+  { value: "all_time", label: "За всё время" },
+  { value: "month", label: "Этот месяц" },
+  { value: "week", label: "Эта неделя" },
+  { value: "today", label: "Сегодня" },
+];
+
 export function StudentDashboard() {
   const { user } = useAuth();
 
@@ -217,6 +250,7 @@ export function StudentDashboard() {
   const [achievements, setAchievements] = useState<UserAchievement[]>([]);
   const [stats, setStats] = useState<UserStats | null>(null);
   const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
+  const [leaderboardPeriod, setLeaderboardPeriod] = useState<LeaderboardPeriod>("all_time");
   const [comments, setComments] = useState<CommentView[]>([]);
   const [newComment, setNewComment] = useState("");
 
@@ -226,6 +260,21 @@ export function StudentDashboard() {
   const selectedCourse = useMemo(
     () => courses.find((course) => course.id === selectedCourseId) ?? null,
     [courses, selectedCourseId],
+  );
+
+  const topLeaderboard = useMemo(
+    () => leaderboard.filter((entry) => entry.rank <= 10).sort((a, b) => a.rank - b.rank),
+    [leaderboard],
+  );
+
+  const leaderboardChampions = useMemo(() => topLeaderboard.slice(0, 3), [topLeaderboard]);
+  const currentUserLeaderboardEntry = useMemo(
+    () => leaderboard.find((entry) => entry.user_id === user?.id) ?? null,
+    [leaderboard, user?.id],
+  );
+  const currentUserOutsideTop = useMemo(
+    () => (currentUserLeaderboardEntry && currentUserLeaderboardEntry.rank > 10 ? currentUserLeaderboardEntry : null),
+    [currentUserLeaderboardEntry],
   );
 
   const selectedModule = useMemo(() => {
@@ -436,10 +485,10 @@ export function StudentDashboard() {
     if (activeTab !== "leaderboard") return;
 
     api
-      .leaderboard()
+      .leaderboard({ period: leaderboardPeriod, limit: 10, includeMe: true })
       .then(setLeaderboard)
-      .catch((err) => setMessage(`Ошибка загрузки лидерборда: ${getErrorMessage(err)}`));
-  }, [activeTab]);
+      .catch((err) => setMessage(`Ошибка загрузки лидерборда: ${String(err)}`));
+  }, [activeTab, leaderboardPeriod]);
 
   useEffect(() => {
     if (!selectedCourseId) {
@@ -1165,17 +1214,122 @@ export function StudentDashboard() {
 
       {activeTab === "leaderboard" && (
         <SectionCard title="Лидерборд">
-          {leaderboard.length === 0 && <EmptyState message="Лидерборд пока пуст" />}
-          {leaderboard.map((entry) => (
-            <div key={entry.user_id} className="leader-row">
-              <span>
-                #{entry.rank} {entry.full_name}
-              </span>
-              <span>
-                уровень {entry.level} · {entry.xp} XP · серия {entry.streak}
-              </span>
+          <div className="leaderboard-shell">
+            <div className="leaderboard-header">
+              <div className="leaderboard-intro">
+                <p className="leaderboard-kicker">Топ 10 учеников по XP</p>
+                <p className="leaderboard-note">Сортировка по XP, затем по серии и по алфавиту.</p>
+              </div>
+
+              <div className="leaderboard-filters" aria-label="Фильтр периода рейтинга">
+                {LEADERBOARD_PERIODS.map((period) => (
+                  <button
+                    key={period.value}
+                    type="button"
+                    className={leaderboardPeriod === period.value ? "leaderboard-filter active" : "leaderboard-filter"}
+                    onClick={() => setLeaderboardPeriod(period.value)}
+                  >
+                    {period.label}
+                  </button>
+                ))}
+              </div>
             </div>
-          ))}
+
+            {topLeaderboard.length === 0 && <EmptyState message="Лидерборд пока пуст" />}
+
+            {topLeaderboard.length > 0 && (
+              <>
+                <div className="leaderboard-podium" aria-label="Первые три места">
+                  {leaderboardChampions.map((entry) => (
+                    <article
+                      key={entry.user_id}
+                      className={`leaderboard-podium-card ${leaderboardMedalLabel(entry.rank)} ${
+                        entry.user_id === user?.id ? "current-user" : ""
+                      }`}
+                    >
+                      <div className="leaderboard-podium-top">
+                        <span className="leaderboard-medal" aria-hidden="true">
+                          {PODIUM_MEDALS[entry.rank - 1]}
+                        </span>
+                        <span className="leaderboard-place">#{entry.rank}</span>
+                      </div>
+
+                      <div className="leaderboard-name-block">
+                        <h3>{entry.full_name}</h3>
+                        {entry.user_id === user?.id && <span className="leaderboard-you-badge">Это вы</span>}
+                      </div>
+                      <p className="leaderboard-podium-xp">{entry.xp} XP</p>
+
+                      <div className="leaderboard-stats">
+                        <span className="leaderboard-stat-chip">
+                          {LEVEL_ICON} {entry.level}
+                        </span>
+                        <span className="leaderboard-stat-chip">
+                          {ACHIEVEMENT_ICON} {entry.achievement_count}
+                        </span>
+                        <span className="leaderboard-stat-chip">{formatDays(entry.streak)}</span>
+                      </div>
+                    </article>
+                  ))}
+                </div>
+
+                <div className="leaderboard-table" role="table" aria-label="Таблица лидеров">
+                  {topLeaderboard.map((entry) => (
+                    <div
+                      key={entry.user_id}
+                      className={entry.user_id === user?.id ? "leaderboard-table-row current-user" : "leaderboard-table-row"}
+                      role="row"
+                    >
+                      <div className="leaderboard-student" role="cell">
+                        <span className="leaderboard-rank">#{entry.rank}</span>
+                        <div className="leaderboard-name-block">
+                          <span className="leaderboard-name">{entry.full_name}</span>
+                          {entry.user_id === user?.id && <span className="leaderboard-you-badge">Это вы</span>}
+                        </div>
+                      </div>
+
+                      <div className="leaderboard-metrics" role="cell">
+                        <span className="leaderboard-metric">
+                          {LEVEL_ICON} {entry.level}
+                        </span>
+                        <span className="leaderboard-metric">{entry.xp} XP</span>
+                        <span className="leaderboard-metric">
+                          {ACHIEVEMENT_ICON} {entry.achievement_count}
+                        </span>
+                        <span className="leaderboard-metric">{formatDays(entry.streak)}</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                {currentUserOutsideTop && (
+                  <div className="leaderboard-self-wrap">
+                    <p className="leaderboard-self-title">Ваше место в рейтинге</p>
+                    <div className="leaderboard-table-row current-user leaderboard-self-row" role="row">
+                      <div className="leaderboard-student" role="cell">
+                        <span className="leaderboard-rank">#{currentUserOutsideTop.rank}</span>
+                        <div className="leaderboard-name-block">
+                          <span className="leaderboard-name">{currentUserOutsideTop.full_name}</span>
+                          <span className="leaderboard-you-badge">Это вы</span>
+                        </div>
+                      </div>
+
+                      <div className="leaderboard-metrics" role="cell">
+                        <span className="leaderboard-metric">
+                          {LEVEL_ICON} {currentUserOutsideTop.level}
+                        </span>
+                        <span className="leaderboard-metric">{currentUserOutsideTop.xp} XP</span>
+                        <span className="leaderboard-metric">
+                          {ACHIEVEMENT_ICON} {currentUserOutsideTop.achievement_count}
+                        </span>
+                        <span className="leaderboard-metric">{formatDays(currentUserOutsideTop.streak)}</span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </>
+            )}
+          </div>
         </SectionCard>
       )}
     </>

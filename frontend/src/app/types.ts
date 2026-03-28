@@ -147,6 +147,7 @@ export interface LeaderboardEntry {
   full_name: string;
   xp: number;
   level: number;
+  achievement_count: number;
   streak: number;
   rank: number;
 }
