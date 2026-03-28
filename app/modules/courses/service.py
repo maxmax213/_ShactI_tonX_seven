@@ -7,11 +7,15 @@ from app.modules.courses.models import Course, CourseEnrollment, CourseModule, L
 from app.modules.courses.schemas import (
     AssignmentTreeRead,
     CourseCreate,
+    CourseParticipantRead,
     CourseTreeRead,
+    CourseUpdate,
     LessonCreate,
     LessonTreeRead,
+    LessonUpdate,
     ModuleCreate,
     ModuleTreeRead,
+    ModuleUpdate,
 )
 from app.modules.users.models import User
 from app.shared.enums import UserRole
@@ -22,6 +26,14 @@ def _generate_numeric_code(length: int = 6) -> str:
 
 
 class CoursesService:
+    def _get_teacher_course(self, db: Session, teacher_id: int, course_id: int) -> Course:
+        course = db.get(Course, course_id)
+        if course is None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Course not found")
+        if course.teacher_id != teacher_id:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied")
+        return course
+
     def create_course(self, db: Session, teacher_id: int, payload: CourseCreate) -> Course:
         course = Course(
             teacher_id=teacher_id,
@@ -34,11 +46,18 @@ class CoursesService:
         db.refresh(course)
         return course
 
-    def set_published(self, db: Session, course_id: int, is_published: bool) -> Course:
-        course = db.get(Course, course_id)
-        if course is None:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Course not found")
+    def update_course(self, db: Session, teacher_id: int, course_id: int, payload: CourseUpdate) -> Course:
+        course = self._get_teacher_course(db, teacher_id, course_id)
+        course.title = payload.title
+        course.description = payload.description
+        if payload.is_published is not None:
+            course.is_published = payload.is_published
+        db.commit()
+        db.refresh(course)
+        return course
 
+    def set_published(self, db: Session, teacher_id: int, course_id: int, is_published: bool) -> Course:
+        course = self._get_teacher_course(db, teacher_id, course_id)
         course.is_published = is_published
         db.commit()
         db.refresh(course)
@@ -103,6 +122,18 @@ class CoursesService:
         db.refresh(module)
         return module
 
+    def update_module(self, db: Session, teacher_id: int, module_id: int, payload: ModuleUpdate) -> CourseModule:
+        module = db.get(CourseModule, module_id)
+        if module is None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Module not found")
+        self._get_teacher_course(db, teacher_id, module.course_id)
+        module.title = payload.title
+        module.description = payload.description
+        module.order_index = payload.order_index
+        db.commit()
+        db.refresh(module)
+        return module
+
     def create_lesson(self, db: Session, module_id: int, payload: LessonCreate) -> Lesson:
         module = db.get(CourseModule, module_id)
         if module is None:
@@ -115,6 +146,23 @@ class CoursesService:
             order_index=payload.order_index,
         )
         db.add(lesson)
+        db.commit()
+        db.refresh(lesson)
+        return lesson
+
+    def update_lesson(self, db: Session, teacher_id: int, lesson_id: int, payload: LessonUpdate) -> Lesson:
+        lesson = db.get(Lesson, lesson_id)
+        if lesson is None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Lesson not found")
+
+        module = db.get(CourseModule, lesson.module_id)
+        if module is None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Module not found")
+
+        self._get_teacher_course(db, teacher_id, module.course_id)
+        lesson.title = payload.title
+        lesson.theory_text = payload.theory_text
+        lesson.order_index = payload.order_index
         db.commit()
         db.refresh(lesson)
         return lesson
@@ -188,6 +236,32 @@ class CoursesService:
             is_published=course.is_published,
             modules=modules,
         )
+
+    def list_course_participants(
+        self,
+        db: Session,
+        teacher_id: int,
+        course_id: int,
+    ) -> list[CourseParticipantRead]:
+        self._get_teacher_course(db, teacher_id, course_id)
+        participants = (
+            db.query(User)
+            .join(CourseEnrollment, CourseEnrollment.student_id == User.id)
+            .filter(CourseEnrollment.course_id == course_id)
+            .order_by(User.level.desc(), User.xp.desc(), User.full_name.asc())
+            .all()
+        )
+        return [
+            CourseParticipantRead(
+                id=participant.id,
+                full_name=participant.full_name,
+                email=participant.email,
+                xp=participant.xp,
+                level=participant.level,
+                streak=participant.streak,
+            )
+            for participant in participants
+        ]
 
 
 courses_service = CoursesService()
