@@ -1,7 +1,6 @@
 import { FormEvent, useEffect, useMemo, useState } from "react";
 
 import { api } from "../app/api";
-import { useAuth } from "../app/auth";
 import {
   createStarterProgram,
   parseBlockAssignmentConfig,
@@ -12,7 +11,6 @@ import {
 import type {
   Assignment,
   AssignmentBrief,
-  CommentView,
   Course,
   CourseModule,
   CourseTree,
@@ -40,28 +38,10 @@ interface ParsedTestQuestion {
   options: TestOption[];
 }
 
-type CourseAssignmentInfo = {
-  assignmentId: number;
-  lessonTitle: string;
-};
-
 function submissionStatusLabel(status: "pending" | "checked" | "needs_rework"): string {
   if (status === "pending") return "ожидает проверки";
   if (status === "checked") return "проверено";
   return "нужна доработка";
-}
-
-function achievementRarityLabel(rarity: "common" | "rare" | "epic"): string {
-  if (rarity === "common") return "Обычная";
-  if (rarity === "rare") return "Редкая";
-  return "Эпическая";
-}
-
-function achievementDescription(item: UserAchievement): string {
-  if (item.slug.includes("streak")) return "Стабильные занятия каждый день. Так держать.";
-  if (item.slug.includes("first")) return "Первый важный шаг в обучении уже сделан.";
-  if (item.slug.includes("score")) return "Отличный результат и уверенный рост навыков.";
-  return "Новая награда за активность и прогресс в учебе.";
 }
 
 function firstModule(tree: CourseTree | null): CourseModule | null {
@@ -186,18 +166,11 @@ function defaultPracticeSolution(assignment: Assignment): string {
   return "print('solution')";
 }
 
-function clamp(value: number, min: number, max: number): number {
-  return Math.max(min, Math.min(max, value));
-}
-
 export function StudentDashboard() {
-  const { user } = useAuth();
-
   const [activeTab, setActiveTab] = useState<MainTab>("learning");
   const [learningView, setLearningView] = useState<LearningView>("catalog");
 
   const [courses, setCourses] = useState<Course[]>([]);
-  const [courseTreesById, setCourseTreesById] = useState<Record<number, CourseTree>>({});
   const [selectedCourseId, setSelectedCourseId] = useState<number | null>(null);
   const [courseTree, setCourseTree] = useState<CourseTree | null>(null);
   const [selectedModuleId, setSelectedModuleId] = useState<number | null>(null);
@@ -217,8 +190,6 @@ export function StudentDashboard() {
   const [achievements, setAchievements] = useState<UserAchievement[]>([]);
   const [stats, setStats] = useState<UserStats | null>(null);
   const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
-  const [comments, setComments] = useState<CommentView[]>([]);
-  const [newComment, setNewComment] = useState("");
 
   const [enrollCode, setEnrollCode] = useState("");
   const [message, setMessage] = useState("");
@@ -289,94 +260,6 @@ export function StudentDashboard() {
     return completed;
   }, [courseTree, latestSubmissionByAssignment]);
 
-  const expProgress = useMemo(() => {
-    const level = stats?.level ?? user?.level ?? 1;
-    const xp = stats?.xp ?? user?.xp ?? 0;
-    const levelFloor = Math.max(0, (level - 1) * 100);
-    return clamp(((xp - levelFloor) / 100) * 100, 0, 100);
-  }, [stats, user]);
-
-  const xpToNextLevel = useMemo(() => {
-    const level = stats?.level ?? user?.level ?? 1;
-    const xp = stats?.xp ?? user?.xp ?? 0;
-    return Math.max(0, level * 100 - xp);
-  }, [stats, user]);
-
-  const courseProgressData = useMemo(() => {
-    return courses.map((course) => {
-      const tree = courseTreesById[course.id];
-      if (!tree) {
-        return {
-          courseId: course.id,
-          title: course.title,
-          progress: 0,
-          lastTopic: "Загружаем темы...",
-          lessonsCount: 0,
-          description: course.description || "Описание курса скоро появится",
-          isPublished: course.is_published,
-        };
-      }
-
-      const assignmentMap: CourseAssignmentInfo[] = tree.modules.flatMap((module) =>
-        module.lessons.flatMap((lesson) =>
-          lesson.assignments.map((assignment) => ({
-            assignmentId: assignment.id,
-            lessonTitle: lesson.title,
-          })),
-        ),
-      );
-
-      const assignmentIds = new Set(assignmentMap.map((item) => item.assignmentId));
-      const courseSubmissions = submissions.filter((submission) => assignmentIds.has(submission.assignment_id));
-      const completedAssignmentIds = new Set(courseSubmissions.map((submission) => submission.assignment_id));
-      const totalAssignments = assignmentMap.length;
-      const progress = totalAssignments === 0 ? 0 : Math.round((completedAssignmentIds.size / totalAssignments) * 100);
-
-      const latestSubmission = [...courseSubmissions].sort((a, b) => {
-        return new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime();
-      })[0];
-
-      const latestInfo = assignmentMap.find((item) => item.assignmentId === latestSubmission?.assignment_id);
-      const fallbackTopic = tree.modules[0]?.lessons[0]?.title ?? "Курс пока пустой";
-
-      return {
-        courseId: course.id,
-        title: course.title,
-        progress,
-        lastTopic: latestInfo?.lessonTitle ?? fallbackTopic,
-        lessonsCount: tree.modules.reduce((count, module) => count + module.lessons.length, 0),
-        description: course.description || "Описание курса скоро появится",
-        isPublished: course.is_published,
-      };
-    });
-  }, [courses, courseTreesById, submissions]);
-
-  function applyCourseTree(tree: CourseTree): void {
-    setCourseTree(tree);
-    setExpandedModules((current) => {
-      const next = { ...current };
-      for (const module of tree.modules) {
-        if (next[module.id] === undefined) {
-          next[module.id] = true;
-        }
-      }
-      return next;
-    });
-
-    setSelectedModuleId((currentModuleId) => {
-      if (currentModuleId && tree.modules.some((module) => module.id === currentModuleId)) {
-        return currentModuleId;
-      }
-      return firstModule(tree)?.id ?? null;
-    });
-
-    setSelectedLessonId((currentLessonId) => {
-      if (!currentLessonId) return null;
-      const exists = tree.modules.some((module) => module.lessons.some((lesson) => lesson.id === currentLessonId));
-      return exists ? currentLessonId : null;
-    });
-  }
-
   async function loadStudentData(): Promise<void> {
     const [myCourses, mySubmissions, myAchievements, myStats] = await Promise.all([
       api.myCourses(),
@@ -395,7 +278,6 @@ export function StudentDashboard() {
       setCourseTree(null);
       setSelectedModuleId(null);
       setSelectedLessonId(null);
-      setCourseTreesById({});
       return;
     }
 
@@ -403,15 +285,6 @@ export function StudentDashboard() {
       if (current && myCourses.some((course) => course.id === current)) return current;
       return myCourses[0].id;
     });
-
-    const treeResults = await Promise.allSettled(myCourses.map((course) => api.courseTree(course.id)));
-    const nextTrees: Record<number, CourseTree> = {};
-    treeResults.forEach((result, index) => {
-      if (result.status === "fulfilled") {
-        nextTrees[myCourses[index].id] = result.value;
-      }
-    });
-    setCourseTreesById(nextTrees);
   }
 
   async function refreshProgressData(): Promise<void> {
@@ -449,16 +322,9 @@ export function StudentDashboard() {
       return;
     }
 
-    const cachedTree = courseTreesById[selectedCourseId];
-    if (cachedTree) {
-      applyCourseTree(cachedTree);
-      return;
-    }
-
     api
       .courseTree(selectedCourseId)
       .then((tree) => {
-        setCourseTreesById((current) => ({ ...current, [selectedCourseId]: tree }));
         setCourseTree(tree);
         setExpandedModules((current) => {
           const next = { ...current };
@@ -484,7 +350,7 @@ export function StudentDashboard() {
         });
       })
       .catch((err) => setMessage(`Ошибка загрузки структуры курса: ${String(err)}`));
-  }, [selectedCourseId, courseTreesById]);
+  }, [selectedCourseId]);
 
   useEffect(() => {
     if (!selectedLesson) {
@@ -516,18 +382,6 @@ export function StudentDashboard() {
       setBlockProgram(createStarterProgram({ hints: [] }));
     }
   }, [selectedLesson?.id]);
-
-  useEffect(() => {
-    if (!activePracticeAssignment) {
-      setComments([]);
-      return;
-    }
-
-    api
-      .assignmentComments(activePracticeAssignment.id)
-      .then(setComments)
-      .catch((err) => setMessage(`Ошибка загрузки комментариев: ${String(err)}`));
-  }, [activePracticeAssignment?.id]);
 
   function lessonProgress(lesson: Lesson): { done: number; total: number } {
     const total = lesson.assignments.length;
@@ -648,27 +502,8 @@ export function StudentDashboard() {
       await api.submitAssignment(activePracticeAssignment.id, payload);
       setMessage("Задание отправлено учителю");
       await refreshProgressData();
-      setComments(await api.assignmentComments(activePracticeAssignment.id));
     } catch (err) {
       setMessage(`Не удалось отправить задание: ${String(err)}`);
-    }
-  }
-
-  async function onSendComment(event: FormEvent): Promise<void> {
-    event.preventDefault();
-    if (!activePracticeAssignment || !newComment.trim()) return;
-
-    try {
-      await api.createComment({
-        assignment_id: activePracticeAssignment.id,
-        content: newComment.trim(),
-        parent_comment_id: null,
-      });
-
-      setNewComment("");
-      setComments(await api.assignmentComments(activePracticeAssignment.id));
-    } catch (err) {
-      setMessage(`Ошибка отправки комментария: ${String(err)}`);
     }
   }
 
@@ -798,6 +633,34 @@ export function StudentDashboard() {
 
   return (
     <>
+      <SectionCard title="Профиль ученика">
+        {!stats && <EmptyState message="Статистика загружается" />}
+        {stats && (
+          <div className="profile-summary">
+            <div className="profile-main">
+              <h3>{stats.full_name}</h3>
+              <p>
+                Уровень {stats.level} · {stats.xp} XP · Серия {stats.streak}
+              </p>
+            </div>
+            <div className="profile-metrics">
+              <div className="metric-tile">
+                <span>Решений</span>
+                <strong>{stats.total_submissions}</strong>
+              </div>
+              <div className="metric-tile">
+                <span>Средний балл</span>
+                <strong>{stats.average_score}</strong>
+              </div>
+              <div className="metric-tile">
+                <span>Достижений</span>
+                <strong>{achievements.length}</strong>
+              </div>
+            </div>
+          </div>
+        )}
+      </SectionCard>
+
       <SectionCard title="Главная страница">
         <div className="chip-row">
           <button
@@ -817,103 +680,37 @@ export function StudentDashboard() {
       </SectionCard>
 
       {activeTab === "learning" && learningView === "catalog" && (
-        <div className="student-dashboard">
-          <section className="student-hero">
-            <div className="student-hero-main">
-              <div className="student-hero-top">
-                <div>
-                  <p className="student-hero-subtitle">Мой прогресс</p>
-                  <h2>{stats?.full_name ?? user?.full_name ?? "Ученик"}</h2>
-                </div>
-                <div className="student-level-pill">Уровень {stats?.level ?? user?.level ?? 1}</div>
-              </div>
-              <div className="student-exp-row">
-                <p className="student-hero-exp">EXP: {stats?.xp ?? user?.xp ?? 0}</p>
-                <span className="student-exp-target">До след. уровня: {xpToNextLevel}</span>
-              </div>
-              <div className="student-level-track">
-                <div className="student-level-fill" style={{ width: `${expProgress}%` }} />
-              </div>
-              <p className="student-level-note">Прогресс уровня: {Math.round(expProgress)}%</p>
-            </div>
-            <div className="student-hero-bubbles" aria-hidden="true">
-              <span />
-              <span />
-              <span />
-            </div>
-          </section>
+        <SectionCard title="Обучение">
+          <p className="hint">Выберите курс и перейдите к его модулям и урокам.</p>
 
-          <section className="student-metric-grid">
-            <article className="student-metric-card">
-              <span>Средний балл</span>
-              <strong>{stats ? Number(stats.average_score).toFixed(1) : "0.0"}</strong>
-            </article>
-            <article className="student-metric-card">
-              <span>Уровень</span>
-              <strong>{stats?.level ?? user?.level ?? 1}</strong>
-            </article>
-            <article className="student-metric-card">
-              <span>Серия</span>
-              <strong>{stats?.streak ?? user?.streak ?? 0} дней</strong>
-            </article>
-          </section>
-
-          <SectionCard title="Мои курсы">
-            <p className="hint">Выберите курс и перейдите к его модулям и урокам.</p>
-            {courseProgressData.length === 0 && <EmptyState message="У вас пока нет активных курсов" />}
-            {courseProgressData.length > 0 && (
-              <div className="student-course-list">
-                {courseProgressData.map((course) => (
-                  <article key={course.courseId} className="student-course-card">
-                    <div className="student-course-head">
-                      <h3>{course.title}</h3>
-                      <button type="button" className="student-course-open" onClick={() => openCourse(course.courseId)}>
-                        Перейти
-                      </button>
-                    </div>
-                    <p className="student-course-topic">{course.description}</p>
-                    <p className="student-course-topic">Последняя тема: {course.lastTopic}</p>
-                    <p className="student-course-topic">Уроков в курсе: {course.lessonsCount}</p>
-                    <div className="student-progress-track">
-                      <div className="student-progress-fill" style={{ width: `${course.progress}%` }} />
-                    </div>
-                    <p className="student-progress-label">Пройдено: {course.progress}%</p>
-                  </article>
-                ))}
-              </div>
-            )}
-
-            <form className="inline-form" onSubmit={onEnroll}>
-              <input
-                placeholder="Введите код записи на курс"
-                value={enrollCode}
-                onChange={(event) => setEnrollCode(event.target.value)}
-                required
-              />
-              <button type="submit">Записаться</button>
-            </form>
-          </SectionCard>
-
-          <SectionCard title="Мои ачивки">
-            {achievements.length === 0 && <EmptyState message="Пока нет ачивок. Сделайте первое задание." />}
-            <div className="student-achievement-grid">
-              {achievements.map((achievement) => (
-                <article key={achievement.achievement_id} className="student-achievement-card">
-                  <div className={`student-achievement-icon rarity-${achievement.rarity}`} aria-hidden="true">
-                    {achievement.rarity === "epic" ? "EP" : achievement.rarity === "rare" ? "R" : "C"}
+          {courses.length === 0 && <EmptyState message="Пока нет доступных курсов" />}
+          {courses.length > 0 && (
+            <div className="course-grid">
+              {courses.map((course) => (
+                <article key={course.id} className="course-card">
+                  <div className="course-card-head">
+                    <h3>{course.title}</h3>
+                    <span className="course-badge">{course.is_published ? "Опубликован" : "Черновик"}</span>
                   </div>
-                  <div>
-                    <h3>{achievement.title}</h3>
-                    <p>{achievementDescription(achievement)}</p>
-                    <p className="student-achievement-meta">
-                      {achievementRarityLabel(achievement.rarity)} | +{achievement.xp_reward} EXP
-                    </p>
-                  </div>
+                  <p>{course.description || "Описание курса скоро появится"}</p>
+                  <button className="primary" onClick={() => openCourse(course.id)}>
+                    Перейти в курс
+                  </button>
                 </article>
               ))}
             </div>
-          </SectionCard>
-        </div>
+          )}
+
+          <form className="inline-form" onSubmit={onEnroll}>
+            <input
+              placeholder="Введите код записи на курс"
+              value={enrollCode}
+              onChange={(event) => setEnrollCode(event.target.value)}
+              required
+            />
+            <button type="submit">Записаться</button>
+          </form>
+        </SectionCard>
       )}
 
       {activeTab === "learning" && learningView === "course" && (
@@ -1095,60 +892,32 @@ export function StudentDashboard() {
                   {!activePracticeAssignment && <EmptyState message="Выберите задание из списка" />}
 
                   {activePracticeAssignment && (
-                    <>
-                      <form className="form-grid" onSubmit={onSubmitPractice}>
-                        <h3>{activePracticeAssignment.title}</h3>
-                        {activePracticeAssignment.description && <p>{activePracticeAssignment.description}</p>}
+                    <form className="form-grid" onSubmit={onSubmitPractice}>
+                      <h3>{activePracticeAssignment.title}</h3>
+                      {activePracticeAssignment.description && <p>{activePracticeAssignment.description}</p>}
 
-                        <div className={activePracticeSubmission ? "submission-flag sent" : "submission-flag not-sent"}>
-                          {activePracticeSubmission
-                            ? `Задание отправлено: попытка ${activePracticeSubmission.attempt}, статус ${submissionStatusLabel(activePracticeSubmission.status)}`
-                            : "Задание еще не отправлено"}
-                        </div>
-
-                        {activePracticeAssignment.assignment_type === "blocks" ? (
-                          <BlockEditor config={activeBlockConfig} value={blockProgram} onChange={setBlockProgram} />
-                        ) : (
-                          <textarea
-                            className="code-editor"
-                            value={practiceSolution}
-                            onChange={(event) => setPracticeSolution(event.target.value)}
-                            rows={12}
-                            placeholder="Введите решение на Python"
-                          />
-                        )}
-
-                        <button className="primary" type="submit">
-                          Отправить на проверку учителю
-                        </button>
-                      </form>
-
-                      <div className="lesson-divider" />
-
-                      <div className="lesson-testing">
-                        <h3>Комментарии к заданию</h3>
-                        <form className="inline-form" onSubmit={onSendComment}>
-                          <input
-                            placeholder="Комментарий для учителя"
-                            value={newComment}
-                            onChange={(event) => setNewComment(event.target.value)}
-                          />
-                          <button type="submit">Отправить</button>
-                        </form>
-
-                        {comments.length === 0 && <p className="hint">Пока нет комментариев по этому заданию</p>}
-                        {comments.length > 0 && (
-                          <div className="comment-list">
-                            {comments.map((comment) => (
-                              <article key={comment.id} className="comment-item">
-                                <strong>{comment.author_name}</strong>
-                                <p>{comment.content}</p>
-                              </article>
-                            ))}
-                          </div>
-                        )}
+                      <div className={activePracticeSubmission ? "submission-flag sent" : "submission-flag not-sent"}>
+                        {activePracticeSubmission
+                          ? `Задание отправлено: попытка ${activePracticeSubmission.attempt}, статус ${submissionStatusLabel(activePracticeSubmission.status)}`
+                          : "Задание еще не отправлено"}
                       </div>
-                    </>
+
+                      {activePracticeAssignment.assignment_type === "blocks" ? (
+                        <BlockEditor config={activeBlockConfig} value={blockProgram} onChange={setBlockProgram} />
+                      ) : (
+                        <textarea
+                          className="code-editor"
+                          value={practiceSolution}
+                          onChange={(event) => setPracticeSolution(event.target.value)}
+                          rows={12}
+                          placeholder="Введите решение на Python"
+                        />
+                      )}
+
+                      <button className="primary" type="submit">
+                        Отправить на проверку учителю
+                      </button>
+                    </form>
                   )}
                 </>
               )}
