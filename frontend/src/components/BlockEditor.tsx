@@ -82,8 +82,8 @@ export function BlockEditor({ config, value, onChange }: BlockEditorProps) {
 
   function insertBlock(type: BlockType, index: number) {
     const previousBlock = index > 0 ? value[index - 1] : null;
-    const indent =
-      previousBlock && getBlockDefinition(previousBlock.type).opensScope ? previousBlock.indent + 1 : previousBlock?.indent ?? 0;
+    // Keep sibling level by default; nesting should happen only via explicit "insert inside" dropzones.
+    const indent = previousBlock?.indent ?? 0;
     const nextBlocks = [...value];
     nextBlocks.splice(index, 0, createBlock(type, { indent }));
     onChange(nextBlocks);

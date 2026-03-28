@@ -1,4 +1,4 @@
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useEffect, useState, type ReactNode } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 
 import { api, getErrorMessage } from "../app/api";
@@ -11,6 +11,29 @@ function normalizeQuestions(payload: TestContentPayload | null): TestQuestion[] 
   return payload.questions.filter(
     (question) => question && (typeof question.id === "string" || typeof question.id === "number"),
   );
+}
+
+function initials(fullName: string | undefined): string {
+  if (!fullName) return "U";
+  return fullName
+    .trim()
+    .split(/\s+/)
+    .map((part) => part[0])
+    .filter(Boolean)
+    .slice(0, 2)
+    .join("")
+    .toUpperCase();
+}
+
+function commentAvatar(authorId: number, authorName: string, authorAvatarUrl?: string | null): ReactNode {
+  const stored = authorAvatarUrl || localStorage.getItem(`edu_orbit_avatar_${authorId}`);
+  if (stored) return <img src={stored} alt="avatar" />;
+  return initials(authorName);
+}
+
+function commentXp(comment: CommentView): number {
+  if (typeof comment.author_xp === "number") return comment.author_xp;
+  return 0;
 }
 
 export function StudentTestPage() {
@@ -261,7 +284,15 @@ export function StudentTestPage() {
               <div className="comment-list">
                 {comments.map((comment) => (
                   <article key={comment.id} className="comment-item">
-                    <strong>{comment.author_name}</strong>
+                    <div className="student-inline">
+                      <span className="student-inline-avatar">
+                        {commentAvatar(comment.author_id, comment.author_name, comment.author_avatar_url)}
+                      </span>
+                      <span className="student-inline-meta">
+                        <strong>{comment.author_name}</strong>
+                        <span className="student-inline-sub">XP: {commentXp(comment)}</span>
+                      </span>
+                    </div>
                     <p>{comment.content}</p>
                   </article>
                 ))}

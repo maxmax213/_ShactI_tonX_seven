@@ -127,6 +127,9 @@ export interface CommentView {
   assignment_id: number;
   author_id: number;
   author_name: string;
+  author_xp: number;
+  author_level: number;
+  author_avatar_url?: string | null;
   parent_comment_id: number | null;
   content: string;
   created_at: string;

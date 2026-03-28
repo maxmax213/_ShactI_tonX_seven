@@ -1,4 +1,4 @@
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useState, type ReactNode } from "react";
 
 import { api, getErrorMessage } from "../app/api";
 import { DEFAULT_BLOCK_ASSIGNMENT_TEMPLATE } from "../app/blockProgramming";
@@ -42,6 +42,12 @@ function participantAvatar(participantId: number): string | null {
   }
 }
 
+function commentAvatar(comment: CommentView): ReactNode {
+  const stored = comment.author_avatar_url || participantAvatar(comment.author_id);
+  if (stored) return <img src={stored} alt="avatar" />;
+  return initials(comment.author_name);
+}
+
 export function TeacherDashboard() {
   const [courses, setCourses] = useState<Course[]>([]);
   const [tree, setTree] = useState<CourseTree | null>(null);
@@ -74,6 +80,13 @@ export function TeacherDashboard() {
     () => new Map(participants.map((participant) => [participant.id, participant.full_name])),
     [participants],
   );
+  const participantMap = useMemo(() => new Map(participants.map((participant) => [participant.id, participant])), [participants]);
+
+  function commentXp(comment: CommentView): number {
+    if (typeof comment.author_xp === "number") return comment.author_xp;
+    const participant = participantMap.get(comment.author_id);
+    return participant?.xp ?? 0;
+  }
 
   const stats = useMemo(() => {
     if (!tree) return { modules: 0, lessons: 0, assignments: 0 };
@@ -501,7 +514,13 @@ export function TeacherDashboard() {
                 {comments.length === 0 && <p className="hint">Комментариев от учеников пока нет.</p>}
                 {comments.map((comment) => (
                   <article key={comment.id} className="comment-item">
-                    <strong>{comment.author_name}</strong>
+                    <div className="student-inline">
+                      <span className="student-inline-avatar">{commentAvatar(comment)}</span>
+                      <span className="student-inline-meta">
+                        <strong>{comment.author_name}</strong>
+                        <span className="student-inline-sub">XP: {commentXp(comment)}</span>
+                      </span>
+                    </div>
                     <p>{comment.content}</p>
                   </article>
                 ))}
