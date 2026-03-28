@@ -1,0 +1,23 @@
+[
+  {
+    "slug": "first-code",
+    "title": "First Code Run",
+    "description": "Submit first practical solution",
+    "rarity": "common",
+    "xp_reward": 10
+  },
+  {
+    "slug": "perfect-score",
+    "title": "Perfect Score",
+    "description": "Get 100 points on assignment",
+    "rarity": "rare",
+    "xp_reward": 30
+  },
+  {
+    "slug": "streak-5",
+    "title": "Sprint x5",
+    "description": "Finish 5 tasks in one day",
+    "rarity": "epic",
+    "xp_reward": 50
+  }
+]
