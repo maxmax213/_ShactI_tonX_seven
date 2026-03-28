@@ -232,8 +232,27 @@ def _seed_course(db: Session, teacher: User, student: User) -> None:
     )
     blocks_practice.content_payload = json.dumps(
         {
-            "hint": "Используйте блоки: input -> if -> print",
-            "starter_blocks": ["input", "if", "print"],
+            "goal": "Соберите программу из блоков и проверьте число на положительность.",
+            "hints": [
+                "Используйте блоки: ввод -> if -> вывод.",
+                "В условии можно писать выражения Python, например: int(number) > 0.",
+            ],
+            "allowed_blocks": [
+                "input_variable",
+                "if_condition",
+                "else_branch",
+                "print_text",
+                "print_variable",
+                "set_variable",
+                "comment",
+            ],
+            "starter_blocks": [
+                {"type": "input_variable", "params": {"variable": "number", "prompt": "Введите число"}},
+                {"type": "if_condition", "params": {"condition": "int(number) > 0"}},
+                {"type": "print_text", "params": {"text": "YES"}, "indent": 1},
+                {"type": "else_branch"},
+                {"type": "print_text", "params": {"text": "NO"}, "indent": 1},
+            ],
         },
         ensure_ascii=False,
     )

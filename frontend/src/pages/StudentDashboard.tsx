@@ -46,6 +46,17 @@ type CourseAssignmentInfo = {
   lessonTitle: string;
 };
 
+function initials(fullName: string | undefined): string {
+  if (!fullName) return "U";
+  const parts = fullName
+    .trim()
+    .split(/\s+/)
+    .map((part) => part[0])
+    .filter(Boolean)
+    .slice(0, 2);
+  return parts.join("").toUpperCase();
+}
+
 function submissionStatusLabel(status: "pending" | "checked" | "needs_rework"): string {
   if (status === "pending") return "ожидает проверки";
   if (status === "checked") return "проверено";
@@ -253,6 +264,7 @@ export function StudentDashboard() {
   const [leaderboardPeriod, setLeaderboardPeriod] = useState<LeaderboardPeriod>("all_time");
   const [comments, setComments] = useState<CommentView[]>([]);
   const [newComment, setNewComment] = useState("");
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
 
   const [enrollCode, setEnrollCode] = useState("");
   const [message, setMessage] = useState("");
@@ -262,20 +274,19 @@ export function StudentDashboard() {
     [courses, selectedCourseId],
   );
 
-  const topLeaderboard = useMemo(
-    () => leaderboard.filter((entry) => entry.rank <= 10).sort((a, b) => a.rank - b.rank),
-    [leaderboard],
-  );
+  const avatarStorageKey = useMemo(() => {
+    if (!user?.id) return null;
+    return `edu_orbit_avatar_${user.id}`;
+  }, [user?.id]);
 
-  const leaderboardChampions = useMemo(() => topLeaderboard.slice(0, 3), [topLeaderboard]);
-  const currentUserLeaderboardEntry = useMemo(
-    () => leaderboard.find((entry) => entry.user_id === user?.id) ?? null,
-    [leaderboard, user?.id],
-  );
-  const currentUserOutsideTop = useMemo(
-    () => (currentUserLeaderboardEntry && currentUserLeaderboardEntry.rank > 10 ? currentUserLeaderboardEntry : null),
-    [currentUserLeaderboardEntry],
-  );
+  useEffect(() => {
+    if (!avatarStorageKey) {
+      setAvatarUrl(null);
+      return;
+    }
+    const saved = localStorage.getItem(avatarStorageKey);
+    setAvatarUrl(saved);
+  }, [avatarStorageKey]);
 
   const selectedModule = useMemo(() => {
     if (!courseTree || selectedModuleId === null) return null;
@@ -350,6 +361,17 @@ export function StudentDashboard() {
     const xp = stats?.xp ?? user?.xp ?? 0;
     return Math.max(0, level * 100 - xp);
   }, [stats, user]);
+
+  function commentXp(comment: CommentView): number {
+    if (comment.author_id === user?.id) return stats?.xp ?? user?.xp ?? 0;
+    return 0;
+  }
+
+  function commentAvatar(authorId: number, authorName: string): React.ReactNode {
+    const stored = localStorage.getItem(`edu_orbit_avatar_${authorId}`);
+    if (stored) return <img src={stored} alt="avatar" />;
+    return initials(authorName);
+  }
 
   const courseProgressData = useMemo(() => {
     return courses.map((course) => {
@@ -566,17 +588,29 @@ export function StudentDashboard() {
     }
   }, [selectedLesson?.id]);
 
+  const activeCommentAssignmentId =
+    selectedLessonTab === "theory_test" ? activeTestAssignment?.id ?? null : activePracticeAssignment?.id ?? null;
+
+  async function refreshComments(assignmentId: number): Promise<void> {
+    try {
+      setComments(await api.assignmentComments(assignmentId));
+    } catch (err) {
+      setMessage(`?????? ???????? ????????????: ${String(err)}`);
+    }
+  }
+
   useEffect(() => {
-    if (!activePracticeAssignment) {
+    if (!activeCommentAssignmentId) {
       setComments([]);
       return;
     }
 
-    api
-      .assignmentComments(activePracticeAssignment.id)
-      .then(setComments)
-      .catch((err) => setMessage(`Ошибка загрузки комментариев: ${getErrorMessage(err)}`));
-  }, [activePracticeAssignment?.id]);
+    refreshComments(activeCommentAssignmentId).catch(() => null);
+  }, [activeCommentAssignmentId]);
+
+  useEffect(() => {
+    setNewComment("");
+  }, [activeCommentAssignmentId]);
 
   function lessonProgress(lesson: Lesson): { done: number; total: number } {
     const total = lesson.assignments.length;
@@ -697,7 +731,7 @@ export function StudentDashboard() {
       await api.submitAssignment(activePracticeAssignment.id, payload);
       setMessage("Задание отправлено учителю");
       await refreshProgressData();
-      setComments(await api.assignmentComments(activePracticeAssignment.id));
+      await refreshComments(activePracticeAssignment.id);
     } catch (err) {
       setMessage(`Не удалось отправить задание: ${getErrorMessage(err)}`);
     }
@@ -705,19 +739,19 @@ export function StudentDashboard() {
 
   async function onSendComment(event: FormEvent): Promise<void> {
     event.preventDefault();
-    if (!activePracticeAssignment || !newComment.trim()) return;
+    if (!activeCommentAssignmentId || !newComment.trim()) return;
 
     try {
       await api.createComment({
-        assignment_id: activePracticeAssignment.id,
+        assignment_id: activeCommentAssignmentId,
         content: newComment.trim(),
         parent_comment_id: null,
       });
 
       setNewComment("");
-      setComments(await api.assignmentComments(activePracticeAssignment.id));
+      await refreshComments(activeCommentAssignmentId);
     } catch (err) {
-      setMessage(`Ошибка отправки комментария: ${getErrorMessage(err)}`);
+      setMessage(`?????? ???????? ???????????: ${String(err)}`);
     }
   }
 
@@ -874,7 +908,16 @@ export function StudentDashboard() {
                   <p className="student-hero-subtitle">Мой прогресс</p>
                   <h2>{stats?.full_name ?? user?.full_name ?? "Ученик"}</h2>
                 </div>
-                <div className="student-level-pill">Уровень {stats?.level ?? user?.level ?? 1}</div>
+                <div className="student-hero-right">
+                  <div className="student-hero-avatar">
+                    {avatarUrl ? (
+                      <img src={avatarUrl} alt="avatar" className="student-hero-avatar-img" />
+                    ) : (
+                      initials(stats?.full_name ?? user?.full_name)
+                    )}
+                  </div>
+                  <div className="student-level-pill">Уровень {stats?.level ?? user?.level ?? 1}</div>
+                </div>
               </div>
               <div className="student-exp-row">
                 <p className="student-hero-exp">EXP: {stats?.xp ?? user?.xp ?? 0}</p>
@@ -1105,6 +1148,7 @@ export function StudentDashboard() {
                     {!activeTestAssignment && <EmptyState message="Выберите тест из списка" />}
 
                     {activeTestAssignment && (
+                      <>
                       <form className="form-grid" onSubmit={onSubmitTest}>
                         <h3>{activeTestAssignment.title}</h3>
                         {activeTestAssignment.description && <p>{activeTestAssignment.description}</p>}
@@ -1121,6 +1165,40 @@ export function StudentDashboard() {
                           Отправить тест на проверку
                         </button>
                       </form>
+                      <div className="lesson-divider" />
+
+                      <div className="lesson-testing">
+                        <h3>Минифорум по тесту</h3>
+                        <form className="inline-form" onSubmit={onSendComment}>
+                          <input
+                            placeholder="Комментарий к тесту"
+                            value={newComment}
+                            onChange={(event) => setNewComment(event.target.value)}
+                          />
+                          <button type="submit">Отправить</button>
+                        </form>
+
+                        {comments.length === 0 && <p className="hint">Пока нет комментариев по этому тесту</p>}
+                        {comments.length > 0 && (
+                          <div className="comment-list">
+                            {comments.map((comment) => (
+                              <article key={comment.id} className="comment-item">
+                                <div className="student-inline">
+                                  <span className="student-inline-avatar">
+                                    {commentAvatar(comment.author_id, comment.author_name)}
+                                  </span>
+                                  <span className="student-inline-meta">
+                                    <strong>{comment.author_name}</strong>
+                                    <span className="student-inline-sub">XP: {commentXp(comment)}</span>
+                                  </span>
+                                </div>
+                                <p>{comment.content}</p>
+                              </article>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </>
                     )}
                   </>
                 )}
@@ -1196,7 +1274,15 @@ export function StudentDashboard() {
                           <div className="comment-list">
                             {comments.map((comment) => (
                               <article key={comment.id} className="comment-item">
-                                <strong>{comment.author_name}</strong>
+                                <div className="student-inline">
+                                  <span className="student-inline-avatar">
+                                    {commentAvatar(comment.author_id, comment.author_name)}
+                                  </span>
+                                  <span className="student-inline-meta">
+                                    <strong>{comment.author_name}</strong>
+                                    <span className="student-inline-sub">XP: {commentXp(comment)}</span>
+                                  </span>
+                                </div>
                                 <p>{comment.content}</p>
                               </article>
                             ))}
@@ -1335,3 +1421,6 @@ export function StudentDashboard() {
     </>
   );
 }
+
+
+
