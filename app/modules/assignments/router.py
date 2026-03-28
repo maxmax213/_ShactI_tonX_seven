@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 from app.core.database import get_db
 from app.core.dependencies import require_roles
 from app.modules.assignments.models import Assignment
-from app.modules.assignments.schemas import AssignmentCreate, AssignmentRead
+from app.modules.assignments.schemas import AssignmentCreate, AssignmentRead, AssignmentUpdate
 from app.modules.assignments.service import assignments_service
 from app.modules.users.models import User
 from app.shared.enums import UserRole
@@ -19,6 +19,16 @@ def create_assignment(
     _: User = Depends(require_roles(UserRole.TEACHER)),
 ) -> Assignment:
     return assignments_service.create_assignment(db, payload)
+
+
+@router.patch("/{assignment_id}", response_model=AssignmentRead)
+def update_assignment(
+    assignment_id: int,
+    payload: AssignmentUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles(UserRole.TEACHER)),
+) -> Assignment:
+    return assignments_service.update_assignment(db, current_user.id, assignment_id, payload)
 
 
 @router.get("/{assignment_id}", response_model=AssignmentRead)
