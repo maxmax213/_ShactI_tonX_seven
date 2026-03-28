@@ -100,6 +100,15 @@ export interface Assignment {
   content_payload: string | null;
 }
 
+export interface CourseParticipant {
+  id: number;
+  full_name: string;
+  email: string;
+  xp: number;
+  level: number;
+  streak: number;
+}
+
 export interface Submission {
   id: number;
   assignment_id: number;

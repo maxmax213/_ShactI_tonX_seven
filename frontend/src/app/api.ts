@@ -6,6 +6,7 @@ import type {
   CommentRead,
   CommentView,
   Course,
+  CourseParticipant,
   CourseTree,
   LeaderboardEntry,
   LessonSurvey,
@@ -106,6 +107,13 @@ export const api = {
     });
   },
 
+  updateCourse(payload: { title: string; description?: string | null; is_published?: boolean | null }, courseId: number) {
+    return apiRequest<Course>(`/courses/${courseId}`, {
+      method: "PATCH",
+      body: JSON.stringify(payload),
+    });
+  },
+
   publishCourse(courseId: number, isPublished: boolean) {
     return apiRequest<Course>(`/courses/${courseId}/publish?is_published=${isPublished}`, {
       method: "POST",
@@ -114,6 +122,10 @@ export const api = {
 
   courseTree(courseId: number) {
     return apiRequest<CourseTree>(`/courses/${courseId}/tree`);
+  },
+
+  courseParticipants(courseId: number) {
+    return apiRequest<CourseParticipant[]>(`/courses/${courseId}/participants`);
   },
 
   createModule(courseId: number, payload: { title: string; description?: string; order_index: number }) {
@@ -126,11 +138,31 @@ export const api = {
     );
   },
 
+  updateModule(moduleId: number, payload: { title: string; description?: string | null; order_index: number }) {
+    return apiRequest<{ id: number; course_id: number; title: string; description: string | null; order_index: number }>(
+      `/courses/modules/${moduleId}`,
+      {
+        method: "PATCH",
+        body: JSON.stringify(payload),
+      },
+    );
+  },
+
   createLesson(moduleId: number, payload: { title: string; theory_text?: string; order_index: number }) {
     return apiRequest<{ id: number; module_id: number; title: string; order_index: number }>(
       `/courses/modules/${moduleId}/lessons`,
       {
         method: "POST",
+        body: JSON.stringify(payload),
+      },
+    );
+  },
+
+  updateLesson(lessonId: number, payload: { title: string; theory_text?: string | null; order_index: number }) {
+    return apiRequest<{ id: number; module_id: number; title: string; theory_text: string | null; order_index: number }>(
+      `/courses/lessons/${lessonId}`,
+      {
+        method: "PATCH",
         body: JSON.stringify(payload),
       },
     );
@@ -155,6 +187,23 @@ export const api = {
   }) {
     return apiRequest<Assignment>("/assignments/", {
       method: "POST",
+      body: JSON.stringify(payload),
+    });
+  },
+
+  updateAssignment(
+    assignmentId: number,
+    payload: {
+      title: string;
+      description?: string | null;
+      assignment_type: "blocks" | "python" | "test";
+      max_score: number;
+      is_auto_check: boolean;
+      content_payload?: string | null;
+    },
+  ) {
+    return apiRequest<Assignment>(`/assignments/${assignmentId}`, {
+      method: "PATCH",
       body: JSON.stringify(payload),
     });
   },

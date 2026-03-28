@@ -1,650 +1,540 @@
 import { FormEvent, useEffect, useMemo, useState } from "react";
 
 import { api } from "../app/api";
-import { DEFAULT_BLOCK_ASSIGNMENT_TEMPLATE, parseBlockSubmissionPayload } from "../app/blockProgramming";
+import { DEFAULT_BLOCK_ASSIGNMENT_TEMPLATE } from "../app/blockProgramming";
 import type {
-  Achievement,
   Assignment,
+  AssignmentBrief,
+  CommentView,
   Course,
+  CourseModule,
+  CourseParticipant,
   CourseTree,
+  Lesson,
   Submission,
-  TestContentPayload,
-  TestQuestion,
-  User,
 } from "../app/types";
 import { EmptyState } from "../components/EmptyState";
 import { SectionCard } from "../components/SectionCard";
 
-function assignmentTypeLabel(type: "python" | "blocks" | "test"): string {
-  if (type === "python") return "Python";
-  if (type === "blocks") return "Блоки";
-  return "Тест";
-}
+type Kind = "python" | "blocks" | "test";
+type Editor =
+  | { type: "course"; mode: "create" | "edit" }
+  | { type: "module"; mode: "create" | "edit"; moduleId?: number }
+  | { type: "lesson"; mode: "create" | "edit"; moduleId?: number; lessonId?: number }
+  | { type: "assignment"; mode: "create" | "edit"; lessonId?: number; assignmentId?: number };
 
-function submissionStatusLabel(status: "pending" | "checked" | "needs_rework"): string {
-  if (status === "pending") return "ожидает проверки";
-  if (status === "checked") return "проверено";
-  return "нужна доработка";
-}
-
-function normalizeTestQuestions(payload: string | null): TestQuestion[] {
-  if (!payload) return [];
-  try {
-    const parsed = JSON.parse(payload) as TestContentPayload;
-    if (!parsed || !Array.isArray(parsed.questions)) return [];
-    return parsed.questions.filter(
-      (question) => question && (typeof question.id === "string" || typeof question.id === "number"),
-    );
-  } catch {
-    return [];
-  }
-}
-
-function parseTestAnswers(questions: TestQuestion[], payload: string): Record<string, unknown> {
-  try {
-    const parsed = JSON.parse(payload);
-    if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
-      return parsed as Record<string, unknown>;
-    }
-    if (Array.isArray(parsed)) {
-      const mapped: Record<string, unknown> = {};
-      questions.forEach((question, index) => {
-        if (index < parsed.length) {
-          mapped[String(question.id)] = parsed[index];
-        }
-      });
-      return mapped;
-    }
-  } catch {
-    // fallthrough to text parsing
-  }
-
-  const raw = payload.trim();
-  if (!raw) return {};
-
-  const answers: Record<string, unknown> = {};
-  const separators = ["\n", ";"];
-  let chunks = [raw];
-  for (const sep of separators) {
-    if (raw.includes(sep)) {
-      chunks = raw.split(sep).map((part) => part.trim()).filter(Boolean);
-      break;
-    }
-  }
-
-  if (chunks.some((chunk) => chunk.includes("=") || chunk.includes(":"))) {
-    chunks.forEach((chunk) => {
-      let key = "";
-      let value = "";
-      if (chunk.includes("=")) {
-        const index = chunk.indexOf("=");
-        key = chunk.slice(0, index);
-        value = chunk.slice(index + 1);
-      } else if (chunk.includes(":")) {
-        const index = chunk.indexOf(":");
-        key = chunk.slice(0, index);
-        value = chunk.slice(index + 1);
-      }
-      key = key.trim();
-      value = value.trim();
-      if (!key) return;
-      answers[key] = value.includes(",")
-        ? value.split(",").map((item) => item.trim()).filter(Boolean)
-        : value;
-    });
-    return answers;
-  }
-
-  const ordered = chunks.length > 1 ? chunks : raw.split(",").map((part) => part.trim()).filter(Boolean);
-  questions.forEach((question, index) => {
-    if (index < ordered.length) {
-      const value = ordered[index];
-      answers[String(question.id)] = value.includes(",")
-        ? value.split(",").map((item) => item.trim()).filter(Boolean)
-        : value;
-    }
-  });
-  return answers;
-}
-
-function formatTestAnswer(question: TestQuestion, answer: unknown): string {
-  if (answer === null || typeof answer === "undefined" || answer === "") return "Нет ответа";
-  if (question.type === "true_false") {
-    if (answer === true || answer === "true" || answer === "да") return "Верно";
-    if (answer === false || answer === "false" || answer === "нет") return "Неверно";
-  }
-
-  const options = question.options ?? [];
-  const optionMap = new Map(options.map((option) => [String(option.id), option.text]));
-
-  if (Array.isArray(answer)) {
-    const resolved = answer.map((value) => optionMap.get(String(value)) ?? String(value));
-    return resolved.join(", ");
-  }
-
-  return optionMap.get(String(answer)) ?? String(answer);
-}
-
-function formatCorrectAnswer(question: TestQuestion): string {
-  if (typeof question.correct === "undefined") return "";
-  return formatTestAnswer(question, question.correct);
-}
-
-function renderSubmissionContent(
-  submission: Submission,
-  assignment: Assignment | null,
-  testQuestions: TestQuestion[],
-) {
-  if (assignment?.assignment_type === "test" && testQuestions.length > 0) {
-    const answers = parseTestAnswers(testQuestions, submission.solution_payload);
-    return (
-      <div className="test-review">
-        {testQuestions.map((question, index) => {
-          const questionId = String(question.id);
-          const prompt = question.prompt || question.title || `Вопрос ${index + 1}`;
-          const studentAnswer = formatTestAnswer(question, answers[questionId]);
-          const correctAnswer = formatCorrectAnswer(question);
-
-          return (
-            <div key={questionId} className="test-review__question">
-              <strong>{prompt}</strong>
-              <p>Ответ ученика: {studentAnswer}</p>
-              {correctAnswer && <p className="hint">Правильный ответ: {correctAnswer}</p>}
-            </div>
-          );
-        })}
-      </div>
-    );
-  }
-
-  const blockPayload = parseBlockSubmissionPayload(submission.solution_payload);
-  if (!blockPayload) {
-    return <pre>{submission.solution_payload}</pre>;
-  }
-
-  return (
-    <div className="block-review">
-      <p className="hint">Блочное решение: {blockPayload.blocks.length} блоков</p>
-      <pre>{blockPayload.generated_code}</pre>
-    </div>
-  );
-}
+const assignmentLabel = (type: Kind) => (type === "python" ? "Python" : type === "blocks" ? "Блоки" : "Тест");
+const submissionLabel = (status: Submission["status"]) =>
+  status === "pending" ? "ожидает проверки" : status === "checked" ? "проверено" : "нужна доработка";
+const initials = (name: string) =>
+  name
+    .split(" ")
+    .map((part) => part.trim()[0])
+    .filter(Boolean)
+    .slice(0, 2)
+    .join("")
+    .toUpperCase();
 
 export function TeacherDashboard() {
   const [courses, setCourses] = useState<Course[]>([]);
-  const [students, setStudents] = useState<User[]>([]);
-  const [achievements, setAchievements] = useState<Achievement[]>([]);
+  const [tree, setTree] = useState<CourseTree | null>(null);
+  const [participants, setParticipants] = useState<CourseParticipant[]>([]);
   const [selectedCourseId, setSelectedCourseId] = useState<number | null>(null);
-  const [selectedTree, setSelectedTree] = useState<CourseTree | null>(null);
   const [selectedAssignmentId, setSelectedAssignmentId] = useState<number | null>(null);
-  const [selectedAssignment, setSelectedAssignment] = useState<Assignment | null>(null);
-  const [testQuestions, setTestQuestions] = useState<TestQuestion[]>([]);
-  const [assignmentSubmissions, setAssignmentSubmissions] = useState<Submission[]>([]);
-  const [message, setMessage] = useState<string>("");
+  const [submissions, setSubmissions] = useState<Submission[]>([]);
+  const [comments, setComments] = useState<CommentView[]>([]);
+  const [gradeValues, setGradeValues] = useState<Record<number, number>>({});
+  const [editor, setEditor] = useState<Editor>({ type: "course", mode: "create" });
+  const [message, setMessage] = useState("");
 
-  const [courseForm, setCourseForm] = useState({ title: "", description: "" });
+  const [courseForm, setCourseForm] = useState({ title: "", description: "", is_published: false });
   const [moduleForm, setModuleForm] = useState({ title: "", description: "", order_index: 1 });
-  const [lessonForm, setLessonForm] = useState({ module_id: 0, title: "", theory_text: "", order_index: 1 });
+  const [lessonForm, setLessonForm] = useState({ title: "", theory_text: "", order_index: 1 });
   const [assignmentForm, setAssignmentForm] = useState({
-    lesson_id: 0,
     title: "",
     description: "",
-    assignment_type: "python" as "python" | "blocks" | "test",
+    assignment_type: "python" as Kind,
     max_score: 100,
     is_auto_check: false,
     content_payload: "",
   });
-  const [achievementForm, setAchievementForm] = useState({
-    slug: "",
-    title: "",
-    description: "",
-    rarity: "common" as "common" | "rare" | "epic",
-    xp_reward: 10,
-  });
+
+  const selectedCourse = useMemo(
+    () => courses.find((course) => course.id === selectedCourseId) ?? null,
+    [courses, selectedCourseId],
+  );
+  const participantNameMap = useMemo(
+    () => new Map(participants.map((participant) => [participant.id, participant.full_name])),
+    [participants],
+  );
+
+  const stats = useMemo(() => {
+    if (!tree) return { modules: 0, lessons: 0, assignments: 0 };
+    return {
+      modules: tree.modules.length,
+      lessons: tree.modules.reduce((sum, module) => sum + module.lessons.length, 0),
+      assignments: tree.modules.reduce(
+        (sum, module) => sum + module.lessons.reduce((lessonSum, lesson) => lessonSum + lesson.assignments.length, 0),
+        0,
+      ),
+    };
+  }, [tree]);
+
+  async function refreshCourses(preferredId?: number) {
+    const next = await api.myCourses();
+    setCourses(next);
+    if (next.length === 0) {
+      setSelectedCourseId(null);
+      setTree(null);
+      setParticipants([]);
+      return;
+    }
+    const target = preferredId && next.some((course) => course.id === preferredId) ? preferredId : next[0].id;
+    setSelectedCourseId(target);
+  }
+
+  async function refreshCourseData(courseId: number) {
+    const [nextTree, nextParticipants] = await Promise.all([api.courseTree(courseId), api.courseParticipants(courseId)]);
+    setTree(nextTree);
+    setParticipants(nextParticipants);
+  }
 
   useEffect(() => {
-    async function load() {
-      const [myCourses, users, allAchievements] = await Promise.all([
-        api.myCourses(),
-        api.listUsers("student"),
-        api.achievements(),
-      ]);
-      setCourses(myCourses);
-      setStudents(users);
-      setAchievements(allAchievements);
-      if (myCourses.length > 0) {
-        setSelectedCourseId(myCourses[0].id);
-      }
-    }
-
-    load().catch((err) => setMessage(`Не удалось загрузить данные: ${String(err)}`));
+    refreshCourses().catch((err) => setMessage(`Не удалось загрузить курсы: ${String(err)}`));
   }, []);
 
   useEffect(() => {
-    if (!selectedCourseId) {
-      setSelectedTree(null);
-      return;
-    }
-
-    api
-      .courseTree(selectedCourseId)
-      .then(setSelectedTree)
-      .catch((err) => setMessage(`Ошибка загрузки структуры курса: ${String(err)}`));
+    if (!selectedCourseId) return;
+    refreshCourseData(selectedCourseId).catch((err) => setMessage(`Ошибка курса: ${String(err)}`));
   }, [selectedCourseId]);
 
   useEffect(() => {
+    if (!selectedCourse) return;
+    setCourseForm({
+      title: selectedCourse.title,
+      description: selectedCourse.description ?? "",
+      is_published: selectedCourse.is_published,
+    });
+    if (editor.type === "course" && editor.mode === "create") {
+      setEditor({ type: "course", mode: "edit" });
+    }
+  }, [selectedCourse]);
+
+  useEffect(() => {
     if (selectedAssignmentId === null) {
-      setAssignmentSubmissions([]);
-      setSelectedAssignment(null);
-      setTestQuestions([]);
+      setSubmissions([]);
+      setComments([]);
       return;
     }
-
-    const assignmentId: number = selectedAssignmentId;
-    async function loadAssignmentDetails() {
-      const [submissions, assignment] = await Promise.all([
-        api.assignmentSubmissions(assignmentId),
-        api.assignment(assignmentId),
-      ]);
-      setAssignmentSubmissions(submissions);
-      setSelectedAssignment(assignment);
-      if (assignment.assignment_type === "test") {
-        setTestQuestions(normalizeTestQuestions(assignment.content_payload));
-      } else {
-        setTestQuestions([]);
-      }
-    }
-
-    loadAssignmentDetails().catch((err) => setMessage(`Ошибка загрузки решений: ${String(err)}`));
+    Promise.all([api.assignmentSubmissions(selectedAssignmentId), api.assignmentComments(selectedAssignmentId)])
+      .then(([nextSubmissions, nextComments]) => {
+        setSubmissions(nextSubmissions);
+        setComments(nextComments);
+      })
+      .catch((err) => setMessage(`Ошибка задания: ${String(err)}`));
   }, [selectedAssignmentId]);
 
-  const lessons = useMemo(() => {
-    if (!selectedTree) return [];
-    return selectedTree.modules.flatMap((module) => module.lessons);
-  }, [selectedTree]);
+  useEffect(() => {
+    setGradeValues((current) => {
+      const next = { ...current };
+      submissions.forEach((submission) => {
+        next[submission.id] = submission.score ?? current[submission.id] ?? 0;
+      });
+      return next;
+    });
+  }, [submissions]);
 
-  async function refreshCourses() {
-    const myCourses = await api.myCourses();
-    setCourses(myCourses);
-    if (myCourses.length > 0 && !selectedCourseId) {
-      setSelectedCourseId(myCourses[0].id);
-    }
+  function editCourse() {
+    if (!selectedCourse) return;
+    setCourseForm({
+      title: selectedCourse.title,
+      description: selectedCourse.description ?? "",
+      is_published: selectedCourse.is_published,
+    });
+    setEditor({ type: "course", mode: "edit" });
   }
 
-  async function onCreateCourse(event: FormEvent) {
+  function addModule() {
+    setModuleForm({ title: "", description: "", order_index: (tree?.modules.length ?? 0) + 1 });
+    setEditor({ type: "module", mode: "create" });
+  }
+
+  function editModule(module: CourseModule) {
+    setModuleForm({ title: module.title, description: module.description ?? "", order_index: module.order_index });
+    setEditor({ type: "module", mode: "edit", moduleId: module.id });
+  }
+
+  function addLesson(module: CourseModule) {
+    setLessonForm({ title: "", theory_text: "", order_index: module.lessons.length + 1 });
+    setEditor({ type: "lesson", mode: "create", moduleId: module.id });
+  }
+
+  function editLesson(lesson: Lesson) {
+    setLessonForm({ title: lesson.title, theory_text: lesson.theory_text ?? "", order_index: lesson.order_index });
+    setEditor({ type: "lesson", mode: "edit", lessonId: lesson.id });
+  }
+
+  function addAssignment(lesson: Lesson) {
+    setAssignmentForm({
+      title: "",
+      description: "",
+      assignment_type: "python",
+      max_score: 100,
+      is_auto_check: false,
+      content_payload: "",
+    });
+    setEditor({ type: "assignment", mode: "create", lessonId: lesson.id });
+  }
+
+  async function editAssignment(assignment: AssignmentBrief) {
+    const full = await api.assignment(assignment.id);
+    setAssignmentForm({
+      title: full.title,
+      description: full.description ?? "",
+      assignment_type: full.assignment_type,
+      max_score: full.max_score,
+      is_auto_check: full.is_auto_check,
+      content_payload: full.content_payload ?? "",
+    });
+    setSelectedAssignmentId(assignment.id);
+    setEditor({ type: "assignment", mode: "edit", assignmentId: assignment.id });
+  }
+
+  async function submitCourse(event: FormEvent) {
     event.preventDefault();
-    await api.createCourse(courseForm);
-    setCourseForm({ title: "", description: "" });
-    setMessage("Курс создан");
-    await refreshCourses();
+    if (editor.mode === "create") {
+      const created = await api.createCourse({ title: courseForm.title, description: courseForm.description || undefined });
+      await refreshCourses(created.id);
+      setMessage("Курс создан");
+      return;
+    }
+    if (!selectedCourseId) return;
+    await api.updateCourse(
+      { title: courseForm.title, description: courseForm.description || null, is_published: courseForm.is_published },
+      selectedCourseId,
+    );
+    await refreshCourses(selectedCourseId);
+    await refreshCourseData(selectedCourseId);
+    setMessage("Курс обновлён");
   }
 
-  async function onCreateModule(event: FormEvent) {
+  async function submitModule(event: FormEvent) {
     event.preventDefault();
     if (!selectedCourseId) return;
-    await api.createModule(selectedCourseId, moduleForm);
-    setModuleForm({ title: "", description: "", order_index: moduleForm.order_index + 1 });
-    setMessage("Модуль создан");
-    setSelectedTree(await api.courseTree(selectedCourseId));
-  }
-
-  async function onCreateLesson(event: FormEvent) {
-    event.preventDefault();
-    if (!lessonForm.module_id) return;
-    await api.createLesson(lessonForm.module_id, {
-      title: lessonForm.title,
-      theory_text: lessonForm.theory_text,
-      order_index: lessonForm.order_index,
-    });
-    setLessonForm((current) => ({ ...current, title: "", theory_text: "", order_index: current.order_index + 1 }));
-    setMessage("Урок создан");
-    if (selectedCourseId) setSelectedTree(await api.courseTree(selectedCourseId));
-  }
-
-  async function onCreateAssignment(event: FormEvent) {
-    event.preventDefault();
-    await api.createAssignment({
-      ...assignmentForm,
-      content_payload: assignmentForm.content_payload || undefined,
-    });
-    setAssignmentForm((current) => ({
-      ...current,
-      title: "",
-      description: "",
-      content_payload: "",
-    }));
-    setMessage("Задание создано");
-    if (selectedCourseId) setSelectedTree(await api.courseTree(selectedCourseId));
-  }
-
-  async function onCreateAchievement(event: FormEvent) {
-    event.preventDefault();
-    await api.createAchievement(achievementForm);
-    setAchievementForm({
-      slug: "",
-      title: "",
-      description: "",
-      rarity: "common",
-      xp_reward: 10,
-    });
-    setAchievements(await api.achievements());
-    setMessage("Ачивка создана");
-  }
-
-  async function onAwardAchievement(achievementId: number, studentId: number) {
-    await api.awardAchievement(achievementId, studentId);
-    setMessage("Ачивка выдана");
-  }
-
-  async function onGradeSubmission(submissionId: number, score: number) {
-    await api.gradeSubmission(submissionId, score, "Проверено учителем");
-    if (selectedAssignmentId !== null) {
-      setAssignmentSubmissions(await api.assignmentSubmissions(selectedAssignmentId));
+    if (editor.type === "module" && editor.mode === "create") {
+      await api.createModule(selectedCourseId, {
+        title: moduleForm.title,
+        description: moduleForm.description || undefined,
+        order_index: moduleForm.order_index,
+      });
+      setMessage("Модуль добавлен");
+    } else if (editor.type === "module" && editor.moduleId) {
+      await api.updateModule(editor.moduleId, {
+        title: moduleForm.title,
+        description: moduleForm.description || null,
+        order_index: moduleForm.order_index,
+      });
+      setMessage("Модуль обновлён");
     }
-    setMessage("Решение проверено");
+    await refreshCourseData(selectedCourseId);
   }
+
+  async function submitLesson(event: FormEvent) {
+    event.preventDefault();
+    if (editor.type === "lesson" && editor.mode === "create" && editor.moduleId) {
+      await api.createLesson(editor.moduleId, {
+        title: lessonForm.title,
+        theory_text: lessonForm.theory_text || undefined,
+        order_index: lessonForm.order_index,
+      });
+      setMessage("Урок добавлен");
+    } else if (editor.type === "lesson" && editor.lessonId) {
+      await api.updateLesson(editor.lessonId, {
+        title: lessonForm.title,
+        theory_text: lessonForm.theory_text || null,
+        order_index: lessonForm.order_index,
+      });
+      setMessage("Урок обновлён");
+    }
+    if (selectedCourseId) await refreshCourseData(selectedCourseId);
+  }
+
+  async function submitAssignment(event: FormEvent) {
+    event.preventDefault();
+    const updatePayload = {
+      title: assignmentForm.title,
+      description: assignmentForm.description || null,
+      assignment_type: assignmentForm.assignment_type,
+      max_score: assignmentForm.max_score,
+      is_auto_check: assignmentForm.is_auto_check,
+      content_payload: assignmentForm.content_payload || null,
+    };
+    if (editor.type === "assignment" && editor.mode === "create" && editor.lessonId) {
+      await api.createAssignment({
+        lesson_id: editor.lessonId,
+        title: assignmentForm.title,
+        description: assignmentForm.description || undefined,
+        assignment_type: assignmentForm.assignment_type,
+        max_score: assignmentForm.max_score,
+        is_auto_check: assignmentForm.is_auto_check,
+        content_payload: assignmentForm.content_payload || undefined,
+      });
+      setMessage("Задание добавлено");
+    } else if (editor.type === "assignment" && editor.assignmentId) {
+      await api.updateAssignment(editor.assignmentId, updatePayload);
+      setSelectedAssignmentId(editor.assignmentId);
+      setMessage("Задание обновлено");
+    }
+    if (selectedCourseId) await refreshCourseData(selectedCourseId);
+  }
+
+  async function gradeSubmission(id: number, score: number) {
+    await api.gradeSubmission(id, score, "Проверено учителем");
+    if (selectedAssignmentId !== null) {
+      setSubmissions(await api.assignmentSubmissions(selectedAssignmentId));
+    }
+  }
+
+  const editorTitle =
+    editor.type === "course"
+      ? editor.mode === "create"
+        ? "Новый курс"
+        : "Редактор курса"
+      : editor.type === "module"
+        ? editor.mode === "create"
+          ? "Новый модуль"
+          : "Редактор модуля"
+        : editor.type === "lesson"
+          ? editor.mode === "create"
+            ? "Новый урок"
+            : "Редактор урока"
+          : editor.mode === "create"
+            ? "Новое задание"
+            : "Редактор задания";
 
   return (
-    <>
-      <SectionCard title="Панель учителя">
-        <div className="chip-row">
-          {courses.map((course) => (
-            <button
-              key={course.id}
-              className={selectedCourseId === course.id ? "chip active" : "chip"}
-              onClick={() => setSelectedCourseId(course.id)}
-            >
-              {course.title}
-            </button>
-          ))}
-        </div>
+    <div className="teacher-dashboard">
+      <SectionCard title="Курсы" actions={<button className="primary" onClick={() => setEditor({ type: "course", mode: "create" })}>Новый курс</button>}>
         {message && <p className="hint">{message}</p>}
-      </SectionCard>
-
-      <div className="two-col">
-        <SectionCard title="Создание контента">
-          <form className="form-grid" onSubmit={onCreateCourse}>
-            <h3>Новый курс</h3>
-            <input
-              placeholder="Название курса"
-              value={courseForm.title}
-              onChange={(event) => setCourseForm((current) => ({ ...current, title: event.target.value }))}
-              required
-            />
-            <textarea
-              placeholder="Описание"
-              value={courseForm.description}
-              onChange={(event) => setCourseForm((current) => ({ ...current, description: event.target.value }))}
-            />
-            <button className="primary" type="submit">
-              Создать курс
-            </button>
-          </form>
-
-          <form className="form-grid" onSubmit={onCreateModule}>
-            <h3>Новый модуль</h3>
-            <input
-              placeholder="Название модуля"
-              value={moduleForm.title}
-              onChange={(event) => setModuleForm((current) => ({ ...current, title: event.target.value }))}
-              required
-            />
-            <input
-              type="number"
-              min={1}
-              value={moduleForm.order_index}
-              onChange={(event) => setModuleForm((current) => ({ ...current, order_index: Number(event.target.value) }))}
-            />
-            <button type="submit">Добавить модуль</button>
-          </form>
-
-          <form className="form-grid" onSubmit={onCreateLesson}>
-            <h3>Новый урок</h3>
-            <select
-              value={lessonForm.module_id}
-              onChange={(event) => setLessonForm((current) => ({ ...current, module_id: Number(event.target.value) }))}
-              required
-            >
-              <option value={0}>Выберите модуль</option>
-              {selectedTree?.modules.map((module) => (
-                <option key={module.id} value={module.id}>
-                  {module.title}
-                </option>
-              ))}
-            </select>
-            <input
-              placeholder="Название урока"
-              value={lessonForm.title}
-              onChange={(event) => setLessonForm((current) => ({ ...current, title: event.target.value }))}
-              required
-            />
-            <textarea
-              placeholder="Теория"
-              value={lessonForm.theory_text}
-              onChange={(event) => setLessonForm((current) => ({ ...current, theory_text: event.target.value }))}
-            />
-            <input
-              type="number"
-              min={1}
-              value={lessonForm.order_index}
-              onChange={(event) => setLessonForm((current) => ({ ...current, order_index: Number(event.target.value) }))}
-            />
-            <button type="submit">Добавить урок</button>
-          </form>
-
-          <form className="form-grid" onSubmit={onCreateAssignment}>
-            <h3>Новое задание</h3>
-            <select
-              value={assignmentForm.lesson_id}
-              onChange={(event) =>
-                setAssignmentForm((current) => ({ ...current, lesson_id: Number(event.target.value) }))
-              }
-              required
-            >
-              <option value={0}>Выберите урок</option>
-              {lessons.map((lesson) => (
-                <option key={lesson.id} value={lesson.id}>
-                  {lesson.title}
-                </option>
-              ))}
-            </select>
-            <input
-              placeholder="Название задания"
-              value={assignmentForm.title}
-              onChange={(event) => setAssignmentForm((current) => ({ ...current, title: event.target.value }))}
-              required
-            />
-            <select
-              value={assignmentForm.assignment_type}
-              onChange={(event) =>
-                setAssignmentForm((current) => ({
-                  ...current,
-                  assignment_type: event.target.value as "python" | "blocks" | "test",
-                }))
-              }
-            >
-              <option value="python">Python</option>
-              <option value="blocks">Блоки</option>
-              <option value="test">Тест</option>
-            </select>
-            <textarea
-              placeholder="Описание"
-              value={assignmentForm.description}
-              onChange={(event) => setAssignmentForm((current) => ({ ...current, description: event.target.value }))}
-            />
-            {assignmentForm.assignment_type === "blocks" && (
-              <>
-                <p className="hint">
-                  Можно оставить поле ниже пустым, тогда редактор возьмёт стандартную палитру блоков. Или вставьте JSON-конфиг.
-                </p>
-                <button
-                  type="button"
-                  onClick={() =>
-                    setAssignmentForm((current) => ({
-                      ...current,
-                      content_payload: current.content_payload || DEFAULT_BLOCK_ASSIGNMENT_TEMPLATE,
-                    }))
-                  }
-                >
-                  Подставить шаблон блоков
-                </button>
-              </>
-            )}
-            <textarea
-              placeholder={
-                assignmentForm.assignment_type === "blocks"
-                  ? "JSON-конфиг для блочного редактора"
-                  : 'JSON для автопроверки теста, пример: {"questions":[{"id":"1","correct":"for"}]}'
-              }
-              value={assignmentForm.content_payload}
-              onChange={(event) =>
-                setAssignmentForm((current) => ({
-                  ...current,
-                  content_payload: event.target.value,
-                }))
-              }
-            />
-            <label className="inline">
-              <input
-                type="checkbox"
-                checked={assignmentForm.is_auto_check}
-                onChange={(event) =>
-                  setAssignmentForm((current) => ({
-                    ...current,
-                    is_auto_check: event.target.checked,
-                  }))
-                }
-              />
-              Автопроверка
-            </label>
-            <button type="submit">Добавить задание</button>
-          </form>
-        </SectionCard>
-
-        <SectionCard title="Структура курса">
-          {!selectedTree && <EmptyState message="Выберите курс для просмотра структуры" />}
-          {selectedTree && (
-            <div className="tree-view">
-              {selectedTree.modules.map((module) => (
-                <div key={module.id} className="tree-node">
-                  <h3>
-                    #{module.order_index} {module.title}
-                  </h3>
-                  {module.lessons.map((lesson) => (
-                    <div key={lesson.id} className="tree-lesson">
-                      <strong>
-                        Урок {lesson.order_index}: {lesson.title}
-                      </strong>
-                      <ul>
-                        {lesson.assignments.map((assignment) => (
-                          <li key={assignment.id}>
-                            <button onClick={() => setSelectedAssignmentId(assignment.id)}>
-                              {assignment.title} ({assignmentTypeLabel(assignment.assignment_type)})
-                            </button>
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                  ))}
+        {courses.length === 0 && <EmptyState message="Курсов пока нет." />}
+        {courses.length > 0 && (
+          <div className="teacher-course-grid">
+            {courses.map((course) => (
+              <button
+                key={course.id}
+                className={selectedCourseId === course.id ? "teacher-course-card active" : "teacher-course-card"}
+                onClick={() => setSelectedCourseId(course.id)}
+              >
+                <div className="teacher-course-card__top">
+                  <strong>{course.title}</strong>
+                  <span className={course.is_published ? "teacher-status live" : "teacher-status draft"}>
+                    {course.is_published ? "Опубликован" : "Черновик"}
+                  </span>
                 </div>
-              ))}
-            </div>
-          )}
-        </SectionCard>
-      </div>
-
-      <div className="two-col">
-        <SectionCard title="Проверка решений">
-          {selectedAssignmentId === null && <EmptyState message="Выберите задание в структуре курса" />}
-          {selectedAssignmentId !== null && assignmentSubmissions.length === 0 && (
-            <EmptyState message="Решений пока нет" />
-          )}
-          {assignmentSubmissions.map((submission) => (
-            <article key={submission.id} className="submission-item">
-              <p>
-                Ученик #{submission.student_id}, попытка {submission.attempt}, статус: {submissionStatusLabel(submission.status)}
-              </p>
-              {renderSubmissionContent(submission, selectedAssignment, testQuestions)}
-              <div className="chip-row">
-                {[60, 75, 90, 100].map((score) => (
-                  <button key={score} onClick={() => onGradeSubmission(submission.id, score)}>
-                    Поставить {score}
-                  </button>
-                ))}
-              </div>
-            </article>
-          ))}
-        </SectionCard>
-
-        <SectionCard title="Ачивки">
-          <form className="form-grid" onSubmit={onCreateAchievement}>
-            <input
-              placeholder="Slug"
-              value={achievementForm.slug}
-              onChange={(event) => setAchievementForm((current) => ({ ...current, slug: event.target.value }))}
-              required
-            />
-            <input
-              placeholder="Название"
-              value={achievementForm.title}
-              onChange={(event) => setAchievementForm((current) => ({ ...current, title: event.target.value }))}
-              required
-            />
-            <textarea
-              placeholder="Описание"
-              value={achievementForm.description}
-              onChange={(event) =>
-                setAchievementForm((current) => ({ ...current, description: event.target.value }))
-              }
-              required
-            />
-            <select
-              value={achievementForm.rarity}
-              onChange={(event) =>
-                setAchievementForm((current) => ({
-                  ...current,
-                  rarity: event.target.value as "common" | "rare" | "epic",
-                }))
-              }
-            >
-              <option value="common">Обычная</option>
-              <option value="rare">Редкая</option>
-              <option value="epic">Эпическая</option>
-            </select>
-            <input
-              type="number"
-              min={1}
-              value={achievementForm.xp_reward}
-              onChange={(event) =>
-                setAchievementForm((current) => ({
-                  ...current,
-                  xp_reward: Number(event.target.value),
-                }))
-              }
-            />
-            <button type="submit">Создать ачивку</button>
-          </form>
-
-          <div className="award-grid">
-            {achievements.map((achievement) => (
-              <div className="achievement-tile" key={achievement.id}>
-                <h4>{achievement.title}</h4>
-                <p>{achievement.description}</p>
-                <select onChange={(event) => onAwardAchievement(achievement.id, Number(event.target.value))} defaultValue="">
-                  <option value="" disabled>
-                    Выдать ученику
-                  </option>
-                  {students.map((student) => (
-                    <option key={student.id} value={student.id}>
-                      {student.full_name}
-                    </option>
-                  ))}
-                </select>
-              </div>
+                <p>{course.description || "Добавьте описание курса."}</p>
+                <span>Код входа: {course.enroll_code}</span>
+              </button>
             ))}
           </div>
-        </SectionCard>
+        )}
+      </SectionCard>
+
+      <div className="teacher-layout">
+        <div className="teacher-main-column">
+          <SectionCard title={selectedCourse?.title || "Структура курса"} actions={selectedCourseId ? <div className="chip-row"><button onClick={editCourse}>Редактировать курс</button><button onClick={addModule}>Добавить модуль</button></div> : undefined}>
+            {!tree && <EmptyState message="Выберите курс для просмотра структуры." />}
+            {tree && (
+              <>
+                <div className="teacher-overview">
+                  <div className="teacher-overview__hero">
+                    <span className="teacher-overview__eyebrow">Teacher workspace</span>
+                    <h3>{tree.title}</h3>
+                    <p>{tree.description || "Соберите здесь программу: модули, уроки, задания и участников."}</p>
+                  </div>
+                  <div className="teacher-stat-grid">
+                    <div className="teacher-stat-tile"><span>Модули</span><strong>{stats.modules}</strong></div>
+                    <div className="teacher-stat-tile"><span>Уроки</span><strong>{stats.lessons}</strong></div>
+                    <div className="teacher-stat-tile"><span>Задания</span><strong>{stats.assignments}</strong></div>
+                    <div className="teacher-stat-tile"><span>Участники</span><strong>{participants.length}</strong></div>
+                  </div>
+                </div>
+                <div className="teacher-structure">
+                  {tree.modules.length === 0 && <EmptyState message="Начните с первого модуля." />}
+                  {tree.modules.map((module) => (
+                    <article key={module.id} className="teacher-module-card">
+                      <div className="teacher-item-head">
+                        <div>
+                          <span className="teacher-item-kicker">Модуль {module.order_index}</span>
+                          <h3>{module.title}</h3>
+                          {module.description && <p>{module.description}</p>}
+                        </div>
+                        <div className="teacher-item-actions">
+                          <button onClick={() => editModule(module)}>Редактировать</button>
+                          <button onClick={() => addLesson(module)}>Добавить урок</button>
+                        </div>
+                      </div>
+                      <div className="teacher-lesson-stack">
+                        {module.lessons.length === 0 && <p className="hint">Уроков пока нет.</p>}
+                        {module.lessons.map((lesson) => (
+                          <div key={lesson.id} className="teacher-lesson-card">
+                            <div className="teacher-item-head compact">
+                              <div>
+                                <span className="teacher-item-kicker">Урок {module.order_index}.{lesson.order_index}</span>
+                                <h4>{lesson.title}</h4>
+                                <p>{lesson.theory_text || "Добавьте теорию и материалы урока."}</p>
+                              </div>
+                              <div className="teacher-item-actions">
+                                <button onClick={() => editLesson(lesson)}>Редактировать</button>
+                                <button onClick={() => addAssignment(lesson)}>Добавить задание</button>
+                              </div>
+                            </div>
+                            <div className="teacher-assignment-list">
+                              {lesson.assignments.length === 0 && <p className="hint">Заданий пока нет.</p>}
+                              {lesson.assignments.map((assignment) => (
+                                <div key={assignment.id} className={selectedAssignmentId === assignment.id ? "teacher-assignment-item active" : "teacher-assignment-item"}>
+                                  <button className="teacher-assignment-item__main" onClick={() => setSelectedAssignmentId(assignment.id)}>
+                                    <strong>{assignment.title}</strong>
+                                    <span>{assignmentLabel(assignment.assignment_type)} | {assignment.max_score} баллов</span>
+                                  </button>
+                                  <button onClick={() => editAssignment(assignment)}>Редактировать</button>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </article>
+                  ))}
+                </div>
+              </>
+            )}
+          </SectionCard>
+
+          <SectionCard title="Проверка работ">
+            {selectedAssignmentId === null && <EmptyState message="Выберите задание, чтобы проверить работы." />}
+            {selectedAssignmentId !== null && submissions.length === 0 && <EmptyState message="Отправок пока нет." />}
+            {submissions.map((submission) => (
+              <article key={submission.id} className="submission-item">
+                <p>
+                  {participantNameMap.get(submission.student_id) ?? `Ученик ${submission.student_id}`}, попытка{" "}
+                  {submission.attempt}, статус: {submissionLabel(submission.status)}
+                </p>
+                <pre>{submission.solution_payload}</pre>
+                <div className="teacher-grade-box">
+                  <label className="teacher-grade-label" htmlFor={`grade-${submission.id}`}>
+                    Оценка: <strong>{gradeValues[submission.id] ?? 0}</strong>
+                  </label>
+                  <input
+                    id={`grade-${submission.id}`}
+                    className="teacher-grade-range"
+                    type="range"
+                    min={0}
+                    max={100}
+                    step={1}
+                    value={gradeValues[submission.id] ?? 0}
+                    onChange={(event) =>
+                      setGradeValues((current) => ({
+                        ...current,
+                        [submission.id]: Number(event.target.value),
+                      }))
+                    }
+                  />
+                  <button onClick={() => gradeSubmission(submission.id, gradeValues[submission.id] ?? 0)}>
+                    Сохранить оценку
+                  </button>
+                </div>
+              </article>
+            ))}
+            {selectedAssignmentId !== null && (
+              <div className="teacher-comments-panel">
+                <h3>Комментарии по заданию</h3>
+                {comments.length === 0 && <p className="hint">Комментариев от учеников пока нет.</p>}
+                {comments.map((comment) => (
+                  <article key={comment.id} className="comment-item">
+                    <strong>{comment.author_name}</strong>
+                    <p>{comment.content}</p>
+                  </article>
+                ))}
+              </div>
+            )}
+          </SectionCard>
+        </div>
+
+        <div className="teacher-side-column">
+          <SectionCard title={editorTitle}>
+            {editor.type === "course" && (
+              <form className="form-grid teacher-editor-form" onSubmit={submitCourse}>
+                <input value={courseForm.title} onChange={(event) => setCourseForm((current) => ({ ...current, title: event.target.value }))} placeholder="Название курса" required />
+                <textarea value={courseForm.description} onChange={(event) => setCourseForm((current) => ({ ...current, description: event.target.value }))} placeholder="Описание курса" rows={5} />
+                {editor.mode === "edit" && (
+                  <label className="inline">
+                    <input type="checkbox" checked={courseForm.is_published} onChange={(event) => setCourseForm((current) => ({ ...current, is_published: event.target.checked }))} />
+                    Курс опубликован
+                  </label>
+                )}
+                <button className="primary" type="submit">{editor.mode === "create" ? "Создать курс" : "Сохранить курс"}</button>
+              </form>
+            )}
+            {editor.type === "module" && (
+              <form className="form-grid teacher-editor-form" onSubmit={submitModule}>
+                <input value={moduleForm.title} onChange={(event) => setModuleForm((current) => ({ ...current, title: event.target.value }))} placeholder="Название модуля" required />
+                <textarea value={moduleForm.description} onChange={(event) => setModuleForm((current) => ({ ...current, description: event.target.value }))} placeholder="Описание модуля" rows={4} />
+                <input type="number" min={1} value={moduleForm.order_index} onChange={(event) => setModuleForm((current) => ({ ...current, order_index: Number(event.target.value) }))} />
+                <button className="primary" type="submit">{editor.mode === "create" ? "Добавить модуль" : "Сохранить модуль"}</button>
+              </form>
+            )}
+            {editor.type === "lesson" && (
+              <form className="form-grid teacher-editor-form" onSubmit={submitLesson}>
+                <input value={lessonForm.title} onChange={(event) => setLessonForm((current) => ({ ...current, title: event.target.value }))} placeholder="Название урока" required />
+                <textarea value={lessonForm.theory_text} onChange={(event) => setLessonForm((current) => ({ ...current, theory_text: event.target.value }))} placeholder="Теория урока" rows={8} />
+                <input type="number" min={1} value={lessonForm.order_index} onChange={(event) => setLessonForm((current) => ({ ...current, order_index: Number(event.target.value) }))} />
+                <button className="primary" type="submit">{editor.mode === "create" ? "Добавить урок" : "Сохранить урок"}</button>
+              </form>
+            )}
+            {editor.type === "assignment" && (
+              <form className="form-grid teacher-editor-form" onSubmit={submitAssignment}>
+                <input value={assignmentForm.title} onChange={(event) => setAssignmentForm((current) => ({ ...current, title: event.target.value }))} placeholder="Название задания" required />
+                <textarea value={assignmentForm.description} onChange={(event) => setAssignmentForm((current) => ({ ...current, description: event.target.value }))} placeholder="Описание задания" rows={4} />
+                <select value={assignmentForm.assignment_type} onChange={(event) => setAssignmentForm((current) => ({ ...current, assignment_type: event.target.value as Kind }))}>
+                  <option value="python">Python</option>
+                  <option value="blocks">Блоки</option>
+                  <option value="test">Тест</option>
+                </select>
+                <input type="number" min={1} value={assignmentForm.max_score} onChange={(event) => setAssignmentForm((current) => ({ ...current, max_score: Number(event.target.value) }))} />
+                {assignmentForm.assignment_type === "blocks" && <button type="button" onClick={() => setAssignmentForm((current) => ({ ...current, content_payload: current.content_payload || DEFAULT_BLOCK_ASSIGNMENT_TEMPLATE }))}>Подставить шаблон блоков</button>}
+                <textarea value={assignmentForm.content_payload} onChange={(event) => setAssignmentForm((current) => ({ ...current, content_payload: event.target.value }))} placeholder="Payload задания" rows={8} />
+                <label className="inline">
+                  <input type="checkbox" checked={assignmentForm.is_auto_check} onChange={(event) => setAssignmentForm((current) => ({ ...current, is_auto_check: event.target.checked }))} />
+                  Автопроверка
+                </label>
+                <button className="primary" type="submit">{editor.mode === "create" ? "Добавить задание" : "Сохранить задание"}</button>
+              </form>
+            )}
+          </SectionCard>
+
+          <SectionCard title="Участники курса">
+            {!selectedCourseId && <EmptyState message="Выберите курс." />}
+            {selectedCourseId && participants.length === 0 && <EmptyState message="Участников пока нет." />}
+            {participants.length > 0 && (
+              <div className="teacher-participant-list">
+                {participants.map((participant) => (
+                  <article key={participant.id} className="teacher-participant-card">
+                    <div className="teacher-participant-avatar">{initials(participant.full_name)}</div>
+                    <div className="teacher-participant-info">
+                      <strong>{participant.full_name}</strong>
+                      <span>{participant.email}</span>
+                    </div>
+                    <div className="teacher-participant-meta">
+                      <span>Уровень {participant.level}</span>
+                      <span>{participant.xp} XP</span>
+                    </div>
+                  </article>
+                ))}
+              </div>
+            )}
+          </SectionCard>
+        </div>
       </div>
-    </>
+    </div>
   );
 }
