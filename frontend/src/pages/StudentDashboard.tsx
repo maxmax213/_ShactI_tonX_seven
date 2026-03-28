@@ -274,6 +274,19 @@ export function StudentDashboard() {
     [courses, selectedCourseId],
   );
 
+  const topLeaderboard = useMemo(() => {
+    return leaderboard.filter((entry) => entry.rank <= 10);
+  }, [leaderboard]);
+
+  const leaderboardChampions = useMemo(() => {
+    return topLeaderboard.slice(0, 3);
+  }, [topLeaderboard]);
+
+  const currentUserOutsideTop = useMemo(() => {
+    if (!user?.id) return null;
+    return leaderboard.find((entry) => entry.user_id === user.id && entry.rank > 10) ?? null;
+  }, [leaderboard, user?.id]);
+
   const avatarStorageKey = useMemo(() => {
     if (!user?.id) return null;
     return `edu_orbit_avatar_${user.id}`;

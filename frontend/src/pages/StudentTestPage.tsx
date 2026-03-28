@@ -1,7 +1,7 @@
 import { FormEvent, useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 
-import { api } from "../app/api";
+import { api, getErrorMessage } from "../app/api";
 import type { Assignment, CommentView, TestContentPayload, TestQuestion } from "../app/types";
 import { EmptyState } from "../components/EmptyState";
 import { SectionCard } from "../components/SectionCard";
