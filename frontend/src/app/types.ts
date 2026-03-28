@@ -175,6 +175,8 @@ export interface ChildProgress {
   xp: number;
   level: number;
   streak: number;
+  achievements_count: number;
+  active_courses_count: number;
   total_submissions: number;
   average_score: number;
 }

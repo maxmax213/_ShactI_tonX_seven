@@ -4,9 +4,9 @@ import { NavLink } from "react-router-dom";
 import { useAuth } from "../app/auth";
 
 function roleLabel(role: "teacher" | "student" | "parent" | undefined): string {
-  if (role === "teacher") return "Учитель";
-  if (role === "parent") return "Родитель";
-  return "Ученик";
+  if (role === "teacher") return "РЈС‡РёС‚РµР»СЊ";
+  if (role === "parent") return "Р РѕРґРёС‚РµР»СЊ";
+  return "РЈС‡РµРЅРёРє";
 }
 
 function initials(fullName: string | undefined): string {
@@ -24,6 +24,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const { user, logout } = useAuth();
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
+  const showGamification = user?.role === "student";
 
   const avatarStorageKey = useMemo(() => {
     if (!user?.id) return null;
@@ -73,10 +74,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       <header className="topbar">
         <div className="brand">Edu Orbit</div>
         <nav className="nav">
-          {user?.role === "teacher" && <NavLink to="/teacher">Учитель</NavLink>}
-          {user?.role === "student" && <NavLink to="/student">Ученик</NavLink>}
-          {user?.role === "parent" && <NavLink to="/parent">Родитель</NavLink>}
-          {user?.role !== "student" && <NavLink to="/leaderboard">Лидерборд</NavLink>}
+          {user?.role === "teacher" && <NavLink to="/teacher">РЈС‡РёС‚РµР»СЊ</NavLink>}
+          {user?.role === "student" && <NavLink to="/student">РЈС‡РµРЅРёРє</NavLink>}
+          {user?.role === "parent" && <NavLink to="/parent">Р РѕРґРёС‚РµР»СЊ</NavLink>}
+          {user?.role !== "student" && <NavLink to="/leaderboard">Р›РёРґРµСЂР±РѕСЂРґ</NavLink>}
         </nav>
         <div className="account">
           <div className="account-badge">
@@ -92,7 +93,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                 type="button"
                 className="avatar-upload-btn"
                 onClick={() => fileInputRef.current?.click()}
-                title="Загрузить аватар"
+                title="Р—Р°РіСЂСѓР·РёС‚СЊ Р°РІР°С‚Р°СЂ"
               >
                 +
               </button>
@@ -107,17 +108,21 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             <div className="account-meta">
               <strong>{user?.full_name}</strong>
               <span>{roleLabel(user?.role)}</span>
-              <div className="topbar-level-row">
-                <span className="topbar-level-pill">Ур. {user?.level ?? 1}</span>
-                <span className="topbar-exp">EXP {user?.xp ?? 0}</span>
-              </div>
-              <div className="topbar-level-track">
-                <div className="topbar-level-fill" style={{ width: `${levelProgress}%` }} />
-              </div>
-              <span className="topbar-next-level">До след. уровня: {xpToNext} EXP</span>
+              {showGamification && (
+                <>
+                  <div className="topbar-level-row">
+                    <span className="topbar-level-pill">РЈСЂ. {user?.level ?? 1}</span>
+                    <span className="topbar-exp">EXP {user?.xp ?? 0}</span>
+                  </div>
+                  <div className="topbar-level-track">
+                    <div className="topbar-level-fill" style={{ width: `${levelProgress}%` }} />
+                  </div>
+                  <span className="topbar-next-level">Р”Рѕ СЃР»РµРґ. СѓСЂРѕРІРЅСЏ: {xpToNext} EXP</span>
+                </>
+              )}
             </div>
           </div>
-          <button onClick={logout}>Выйти</button>
+          <button onClick={logout}>Р’С‹Р№С‚Рё</button>
         </div>
       </header>
       <main className="main-grid">{children}</main>

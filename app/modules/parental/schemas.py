@@ -7,5 +7,7 @@ class ChildProgress(BaseModel):
     xp: int
     level: int
     streak: int
+    achievements_count: int
+    active_courses_count: int
     total_submissions: int
     average_score: float

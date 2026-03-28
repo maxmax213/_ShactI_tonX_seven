@@ -1,6 +1,8 @@
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
+from app.modules.courses.models import CourseEnrollment
+from app.modules.gamification.models import UserAchievement
 from app.modules.parental.schemas import ChildProgress
 from app.modules.submissions.models import Submission
 from app.modules.users.models import ParentStudentLink, User
@@ -20,6 +22,15 @@ class ParentalService:
             stats_query = db.query(Submission).filter(Submission.student_id == student.id)
             total_submissions = stats_query.count()
             average_score = stats_query.with_entities(func.avg(Submission.score)).scalar() or 0
+            achievements_count = (
+                db.query(func.count(UserAchievement.id)).filter(UserAchievement.user_id == student.id).scalar() or 0
+            )
+            active_courses_count = (
+                db.query(func.count(CourseEnrollment.course_id))
+                .filter(CourseEnrollment.student_id == student.id)
+                .scalar()
+                or 0
+            )
 
             progress_list.append(
                 ChildProgress(
@@ -28,6 +39,8 @@ class ParentalService:
                     xp=student.xp,
                     level=student.level,
                     streak=student.streak,
+                    achievements_count=int(achievements_count),
+                    active_courses_count=int(active_courses_count),
                     total_submissions=total_submissions,
                     average_score=round(float(average_score), 2),
                 )
