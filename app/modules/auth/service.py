@@ -22,7 +22,7 @@ class AuthService:
         if existing:
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
-                detail="Email already exists",
+                detail="Такой адрес уже занят. Попробуй войти или используй другую почту.",
             )
 
         parent_link_code = None
@@ -61,7 +61,7 @@ class AuthService:
         if user is None or not verify_password(payload.password, user.password_hash):
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Wrong email or password",
+                detail="Почта или пароль не подошли. Проверь их и попробуй ещё раз.",
             )
 
         if user.role == UserRole.STUDENT:
