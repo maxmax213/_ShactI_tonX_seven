@@ -961,6 +961,33 @@ button.primary {
   color: #3a7153;
 }
 
+.student-parent-code {
+  margin-top: 8px;
+  display: inline-grid;
+  gap: 6px;
+  justify-items: start;
+  padding: 12px 14px;
+  border: 1px solid #bde8ce;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.74);
+  box-shadow: 0 12px 22px rgba(28, 124, 68, 0.12);
+}
+
+.student-parent-code-label {
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #377454;
+}
+
+.student-parent-code-value {
+  font-family: "Cascadia Mono", "Consolas", "Courier New", monospace;
+  font-size: 1.1rem;
+  color: #0f653b;
+  letter-spacing: 0.12em;
+}
+
 .student-hero-bubbles {
   position: absolute;
   inset: 0;
@@ -1708,6 +1735,275 @@ button.primary {
   filter: brightness(1.03);
 }
 
+.parent-detail-page {
+  display: grid;
+  gap: 18px;
+}
+
+.parent-detail-hero {
+  position: relative;
+  overflow: hidden;
+  display: grid;
+  gap: 18px;
+  border: 1px solid #c7dcf5;
+  border-radius: 28px;
+  padding: 22px;
+  background:
+    radial-gradient(circle at top right, rgba(61, 180, 255, 0.18), transparent 28%),
+    radial-gradient(circle at bottom left, rgba(56, 211, 171, 0.14), transparent 32%),
+    linear-gradient(145deg, #ffffff 0%, #f4fbff 56%, #eaf8ff 100%);
+  box-shadow: 0 20px 36px rgba(37, 99, 145, 0.16);
+}
+
+.parent-detail-back {
+  justify-self: start;
+  border-radius: 999px;
+  padding: 8px 14px;
+}
+
+.parent-detail-main {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 18px;
+  align-items: center;
+  position: relative;
+  z-index: 1;
+}
+
+.parent-detail-avatar {
+  width: 90px;
+  height: 90px;
+  border-radius: 26px;
+  overflow: hidden;
+  border: 1px solid #c3dcf8;
+  background: linear-gradient(145deg, #ebf6ff 0%, #dcedff 100%);
+  box-shadow: 0 18px 28px rgba(35, 103, 150, 0.18);
+}
+
+.parent-detail-avatar-image,
+.parent-detail-avatar-fallback {
+  width: 100%;
+  height: 100%;
+}
+
+.parent-detail-avatar-image {
+  display: block;
+  object-fit: cover;
+}
+
+.parent-detail-avatar-fallback {
+  display: grid;
+  place-items: center;
+  color: #1f6693;
+  font-size: 1.5rem;
+  font-weight: 800;
+}
+
+.parent-detail-copy {
+  display: grid;
+  gap: 10px;
+}
+
+.parent-detail-subtitle {
+  margin: 0;
+  color: #33739b;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.parent-detail-level-row,
+.parent-detail-exp-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+}
+
+.parent-detail-level-pill,
+.parent-detail-streak {
+  border-radius: 999px;
+  padding: 8px 12px;
+  font-weight: 700;
+}
+
+.parent-detail-level-pill {
+  color: #1d6e99;
+  background: #e9f4ff;
+  border: 1px solid #bddbfb;
+}
+
+.parent-detail-streak {
+  color: #167c64;
+  background: #e9fbf5;
+  border: 1px solid #bcefdc;
+}
+
+.parent-detail-exp-track {
+  width: 100%;
+  height: 14px;
+  border-radius: 999px;
+  overflow: hidden;
+  border: 1px solid #c8dff7;
+  background: #ebf5ff;
+}
+
+.parent-detail-exp-fill {
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #1ea2ff 0%, #22d3a6 100%);
+}
+
+.parent-detail-metrics {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+  position: relative;
+  z-index: 1;
+}
+
+.parent-detail-metric {
+  border: 1px solid #d3e4f7;
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.94);
+  padding: 14px;
+  display: grid;
+  gap: 5px;
+}
+
+.parent-detail-metric span {
+  color: #627c8d;
+  font-size: 0.84rem;
+}
+
+.parent-detail-metric strong {
+  color: #21455f;
+  font-size: 1.34rem;
+}
+
+.parent-detail-achievements {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.parent-detail-achievement-card {
+  border: 1px solid #d4e5f7;
+  border-radius: 18px;
+  background: linear-gradient(155deg, #ffffff 0%, #f7fbff 100%);
+  padding: 14px;
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 12px;
+  align-items: start;
+  position: relative;
+  overflow: hidden;
+  box-shadow: 0 12px 22px rgba(36, 100, 145, 0.1);
+  transition: transform 0.24s ease, box-shadow 0.24s ease, border-color 0.24s ease;
+}
+
+.parent-detail-achievement-card::before {
+  content: "";
+  position: absolute;
+  right: -22px;
+  top: -24px;
+  width: 90px;
+  height: 90px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(87, 181, 255, 0.18), rgba(87, 181, 255, 0));
+}
+
+.parent-detail-achievement-card::after {
+  content: "";
+  position: absolute;
+  left: -26px;
+  bottom: -36px;
+  width: 88px;
+  height: 88px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(71, 217, 184, 0.12), rgba(71, 217, 184, 0));
+}
+
+.parent-detail-achievement-card:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 18px 28px rgba(34, 98, 145, 0.16);
+  border-color: #bddcf7;
+}
+
+.parent-detail-achievement-card h3,
+.parent-detail-submission-card h3 {
+  margin: 0;
+}
+
+.parent-detail-achievement-card p,
+.parent-detail-submission-meta {
+  margin: 4px 0 0;
+  color: #5d7686;
+}
+
+.parent-detail-achievement-meta {
+  margin-top: 8px !important;
+  font-weight: 700;
+  color: #1f658f !important;
+}
+
+.parent-detail-achievement-icon {
+  width: 46px;
+  height: 46px;
+  border-radius: 14px;
+  display: grid;
+  place-items: center;
+  color: #fff;
+  font-weight: 800;
+  position: relative;
+  z-index: 1;
+  box-shadow: 0 10px 16px rgba(32, 94, 139, 0.22);
+}
+
+.parent-detail-achievement-icon.rarity-common {
+  background: linear-gradient(140deg, #57aef3 0%, #2b81cb 100%);
+}
+
+.parent-detail-achievement-icon.rarity-rare {
+  background: linear-gradient(140deg, #3fa9ff 0%, #256fd1 100%);
+}
+
+.parent-detail-achievement-icon.rarity-epic {
+  background: linear-gradient(140deg, #8d6df5 0%, #6843dd 100%);
+}
+
+.parent-detail-submissions {
+  display: grid;
+  gap: 12px;
+}
+
+.parent-detail-submission-card {
+  border: 1px solid #d4e6f8;
+  border-radius: 18px;
+  background: linear-gradient(160deg, #ffffff 0%, #f8fbff 100%);
+  padding: 14px;
+  display: grid;
+  gap: 6px;
+}
+
+.parent-detail-submission-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  align-items: center;
+}
+
+.parent-detail-submission-type {
+  border-radius: 999px;
+  padding: 6px 10px;
+  border: 1px solid #c2dcf7;
+  background: #edf6ff;
+  color: #246b98;
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
 .parent-dashboard > * {
   animation: student-pop 0.55s ease both;
 }
@@ -1819,6 +2115,12 @@ button.primary {
   .student-hero-top {
     align-items: flex-start;
     flex-direction: column;
+  }
+
+  .parent-detail-main,
+  .parent-detail-achievements,
+  .parent-detail-metrics {
+    grid-template-columns: 1fr;
   }
 
   .parent-hero,

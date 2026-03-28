@@ -3,6 +3,7 @@ import { Navigate, Outlet, Route, Routes } from "react-router-dom";
 import { AppShell } from "../components/AppShell";
 import { AuthPage } from "../pages/AuthPage";
 import { LeaderboardPage } from "../pages/LeaderboardPage";
+import { ParentChildDetailsPage } from "../pages/ParentChildDetailsPage";
 import { ParentDashboard } from "../pages/ParentDashboard";
 import { StudentDashboard } from "../pages/StudentDashboard";
 import { TeacherDashboard } from "../pages/TeacherDashboard";
@@ -61,6 +62,7 @@ export function App() {
 
       <Route element={<RoleGate allow={["parent"]} />}>
         <Route path="/parent" element={<ParentDashboard />} />
+        <Route path="/parent/children/:studentId" element={<ParentChildDetailsPage />} />
       </Route>
 
       <Route path="*" element={<Navigate to="/" replace />} />

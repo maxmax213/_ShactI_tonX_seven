@@ -2,6 +2,7 @@ import type {
   Achievement,
   Assignment,
   AuthResponse,
+  ChildDetail,
   ChildProgress,
   CommentRead,
   CommentView,
@@ -18,6 +19,52 @@ import type {
 const API_URL = import.meta.env.VITE_API_URL ?? "http://localhost:8000/api";
 
 let token: string | null = localStorage.getItem("access_token");
+
+function stripHtml(source: string): string {
+  return source.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim();
+}
+
+function pydanticDetailMessage(detail: unknown): string | null {
+  if (typeof detail === "string") return detail;
+
+  if (Array.isArray(detail) && detail.length > 0) {
+    const first = detail[0] as {
+      type?: string;
+      msg?: string;
+      loc?: unknown[];
+      ctx?: { min_length?: number; max_length?: number };
+    };
+
+    const field = Array.isArray(first.loc) ? String(first.loc[first.loc.length - 1] ?? "") : "";
+
+    if (first.type === "string_too_short" && field === "link_code") {
+      const minLength = first.ctx?.min_length ?? 0;
+      return `Код должен содержать минимум ${minLength} символа`;
+    }
+
+    if (typeof first.msg === "string" && first.msg.trim()) {
+      return first.msg.trim();
+    }
+  }
+
+  return null;
+}
+
+export function getErrorMessage(error: unknown, fallback = "Произошла ошибка"): string {
+  const raw = String(error ?? "");
+  const normalized = raw.startsWith("Error: ") ? raw.slice(7) : raw;
+
+  try {
+    const parsed = JSON.parse(normalized) as { detail?: unknown };
+    const detailMessage = pydanticDetailMessage(parsed.detail);
+    if (detailMessage) return detailMessage;
+  } catch {
+    // Ignore parsing issues and fall back to cleaned text.
+  }
+
+  const cleaned = stripHtml(normalized);
+  return cleaned || fallback;
+}
 
 export function setToken(value: string | null): void {
   token = value;
@@ -42,7 +89,21 @@ async function apiRequest<T>(path: string, options: RequestInit = {}): Promise<T
 
   if (!response.ok) {
     const body = await response.text();
-    throw new Error(body || `Request failed: ${response.status}`);
+    const contentType = response.headers.get("content-type") ?? "";
+
+    if (contentType.includes("application/json")) {
+      let parsedMessage: string | null = null;
+      try {
+        const parsed = JSON.parse(body) as { detail?: unknown };
+        parsedMessage = pydanticDetailMessage(parsed.detail);
+      } catch {
+        parsedMessage = null;
+      }
+      throw new Error(parsedMessage || stripHtml(body) || `Request failed: ${response.status}`);
+    }
+
+    const cleaned = stripHtml(body);
+    throw new Error(cleaned || `Request failed: ${response.status}`);
   }
 
   if (response.status === 204) {
@@ -225,6 +286,10 @@ export const api = {
 
   childrenProgress() {
     return apiRequest<ChildProgress[]>("/parental/children");
+  },
+
+  childDetail(studentId: number) {
+    return apiRequest<ChildDetail>(`/parental/children/${studentId}`);
   },
 
   submitLessonSurvey(

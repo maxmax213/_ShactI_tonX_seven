@@ -1,6 +1,7 @@
 import { FormEvent, useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 
-import { api } from "../app/api";
+import { api, getErrorMessage } from "../app/api";
 import { useAuth } from "../app/auth";
 import type { ChildProgress } from "../app/types";
 import { EmptyState } from "../components/EmptyState";
@@ -34,11 +35,25 @@ function childAvatar(studentId: number): string | null {
   }
 }
 
+function errorMessage(error: unknown): string {
+  const fallback = "Не удалось привязать ребенка";
+  const normalized = getErrorMessage(error, "Не удалось привязать ребенка");
+
+  if (!normalized) return fallback;
+  if (normalized.includes("Ребенок с таким кодом не найден")) return "Ребенок с таким кодом не найден";
+  if (normalized.includes("Student with provided code not found")) return "Ребенок с таким кодом не найден";
+  if (normalized.includes("already linked")) return "Этот ребенок уже привязан";
+
+  return normalized;
+}
+
 export function ParentDashboard() {
+  const navigate = useNavigate();
   const { user } = useAuth();
   const [children, setChildren] = useState<ChildProgress[]>([]);
   const [linkCode, setLinkCode] = useState("");
-  const [message, setMessage] = useState("");
+  const [notice, setNotice] = useState("");
+  const [errorText, setErrorText] = useState("");
 
   async function load() {
     const childrenData = await api.childrenProgress();
@@ -46,15 +61,22 @@ export function ParentDashboard() {
   }
 
   useEffect(() => {
-    load().catch((err) => setMessage(`Не удалось загрузить панель родителя: ${String(err)}`));
+    load().catch((err) => setErrorText(`Не удалось загрузить панель родителя: ${errorMessage(err)}`));
   }, []);
 
   async function onLinkChild(event: FormEvent) {
     event.preventDefault();
-    await api.linkParentByCode(linkCode);
-    setLinkCode("");
-    setMessage("Ребенок успешно привязан");
-    await load();
+    setNotice("");
+    setErrorText("");
+
+    try {
+      await api.linkParentByCode(linkCode);
+      setLinkCode("");
+      setNotice("Ребенок успешно привязан");
+      await load();
+    } catch (error) {
+      setErrorText(errorMessage(error));
+    }
   }
 
   return (
@@ -82,7 +104,8 @@ export function ParentDashboard() {
           <button type="submit" className="primary">
             Добавить ребенка
           </button>
-          {message && <p className="hint">{message}</p>}
+          {notice && <p className="hint">{notice}</p>}
+          {errorText && <p className="error">{errorText}</p>}
         </form>
 
         <div className="parent-hero-bubbles" aria-hidden="true">
@@ -200,7 +223,7 @@ export function ParentDashboard() {
                     <button
                       type="button"
                       className="parent-detail-btn"
-                      title="Раздел с детальной информацией появится позже"
+                      onClick={() => navigate(`/parent/children/${child.student_id}`)}
                     >
                       <span className="parent-inline-icon details" aria-hidden="true">
                         GO

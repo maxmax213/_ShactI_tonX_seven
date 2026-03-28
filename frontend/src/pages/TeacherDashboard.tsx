@@ -1,6 +1,6 @@
 import { FormEvent, useEffect, useMemo, useState } from "react";
 
-import { api } from "../app/api";
+import { api, getErrorMessage } from "../app/api";
 import { DEFAULT_BLOCK_ASSIGNMENT_TEMPLATE, parseBlockSubmissionPayload } from "../app/blockProgramming";
 import type {
   Achievement,
@@ -217,7 +217,7 @@ export function TeacherDashboard() {
       }
     }
 
-    load().catch((err) => setMessage(`Не удалось загрузить данные: ${String(err)}`));
+    load().catch((err) => setMessage(`Не удалось загрузить данные: ${getErrorMessage(err)}`));
   }, []);
 
   useEffect(() => {
@@ -229,7 +229,7 @@ export function TeacherDashboard() {
     api
       .courseTree(selectedCourseId)
       .then(setSelectedTree)
-      .catch((err) => setMessage(`Ошибка загрузки структуры курса: ${String(err)}`));
+      .catch((err) => setMessage(`Ошибка загрузки структуры курса: ${getErrorMessage(err)}`));
   }, [selectedCourseId]);
 
   useEffect(() => {
@@ -255,7 +255,7 @@ export function TeacherDashboard() {
       }
     }
 
-    loadAssignmentDetails().catch((err) => setMessage(`Ошибка загрузки решений: ${String(err)}`));
+    loadAssignmentDetails().catch((err) => setMessage(`Ошибка загрузки решений: ${getErrorMessage(err)}`));
   }, [selectedAssignmentId]);
 
   const lessons = useMemo(() => {

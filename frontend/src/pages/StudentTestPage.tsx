@@ -1,7 +1,7 @@
 import { FormEvent, useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 
-import { api } from "../app/api";
+import { api, getErrorMessage } from "../app/api";
 import type { Assignment, TestContentPayload, TestQuestion } from "../app/types";
 import { EmptyState } from "../components/EmptyState";
 import { SectionCard } from "../components/SectionCard";
@@ -59,13 +59,13 @@ export function StudentTestPage() {
           setMessage("");
         }
       } catch (err) {
-        setMessage(`Не удалось загрузить тест: ${String(err)}`);
+        setMessage(`Не удалось загрузить тест: ${getErrorMessage(err)}`);
       } finally {
         setLoading(false);
       }
     }
 
-    load().catch((err) => setMessage(`Не удалось загрузить тест: ${String(err)}`));
+    load().catch((err) => setMessage(`Не удалось загрузить тест: ${getErrorMessage(err)}`));
   }, [assignmentId, navigate]);
 
   function setAnswer(questionId: string, value: unknown) {
@@ -94,7 +94,7 @@ export function StudentTestPage() {
       await api.submitAssignment(assignment.id, JSON.stringify(answers));
       setMessage("Ответы отправлены");
     } catch (err) {
-      setMessage(`Не удалось отправить тест: ${String(err)}`);
+      setMessage(`Не удалось отправить тест: ${getErrorMessage(err)}`);
     } finally {
       setSubmitting(false);
     }
