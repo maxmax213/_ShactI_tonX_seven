@@ -1,9 +1,8 @@
 import { FormEvent, useEffect, useMemo, useState } from "react";
 
 import { api, getErrorMessage } from "../app/api";
-import { DEFAULT_BLOCK_ASSIGNMENT_TEMPLATE, parseBlockSubmissionPayload } from "../app/blockProgramming";
+import { DEFAULT_BLOCK_ASSIGNMENT_TEMPLATE } from "../app/blockProgramming";
 import type {
-  Assignment,
   AssignmentBrief,
   CommentView,
   Course,
@@ -34,6 +33,14 @@ const initials = (name: string) =>
     .slice(0, 2)
     .join("")
     .toUpperCase();
+
+function participantAvatar(participantId: number): string | null {
+  try {
+    return localStorage.getItem(`edu_orbit_avatar_${participantId}`);
+  } catch {
+    return null;
+  }
+}
 
 export function TeacherDashboard() {
   const [courses, setCourses] = useState<Course[]>([]);
@@ -93,17 +100,19 @@ export function TeacherDashboard() {
     setSelectedCourseId(target);
   }
 
-    load().catch((err) => setMessage(`Не удалось загрузить данные: ${getErrorMessage(err)}`));
+  async function refreshCourseData(courseId: number) {
+    const [nextTree, nextParticipants] = await Promise.all([api.courseTree(courseId), api.courseParticipants(courseId)]);
+    setTree(nextTree);
+    setParticipants(nextParticipants);
+  }
+
+  useEffect(() => {
+    refreshCourses().catch((err) => setMessage(`Не удалось загрузить курсы: ${getErrorMessage(err)}`));
   }, []);
 
   useEffect(() => {
-    refreshCourses().catch((err) => setMessage(`Не удалось загрузить курсы: ${String(err)}`));
-  }, []);
-
-    api
-      .courseTree(selectedCourseId)
-      .then(setSelectedTree)
-      .catch((err) => setMessage(`Ошибка загрузки структуры курса: ${getErrorMessage(err)}`));
+    if (!selectedCourseId) return;
+    refreshCourseData(selectedCourseId).catch((err) => setMessage(`Ошибка курса: ${getErrorMessage(err)}`));
   }, [selectedCourseId]);
 
   useEffect(() => {
@@ -124,8 +133,12 @@ export function TeacherDashboard() {
       setComments([]);
       return;
     }
-
-    loadAssignmentDetails().catch((err) => setMessage(`Ошибка загрузки решений: ${getErrorMessage(err)}`));
+    Promise.all([api.assignmentSubmissions(selectedAssignmentId), api.assignmentComments(selectedAssignmentId)])
+      .then(([nextSubmissions, nextComments]) => {
+        setSubmissions(nextSubmissions);
+        setComments(nextComments);
+      })
+      .catch((err) => setMessage(`Ошибка задания: ${getErrorMessage(err)}`));
   }, [selectedAssignmentId]);
 
   useEffect(() => {
@@ -308,7 +321,14 @@ export function TeacherDashboard() {
 
   return (
     <div className="teacher-dashboard">
-      <SectionCard title="Курсы" actions={<button className="primary" onClick={() => setEditor({ type: "course", mode: "create" })}>Новый курс</button>}>
+      <SectionCard
+        title="Курсы"
+        actions={
+          <button className="primary" onClick={() => setEditor({ type: "course", mode: "create" })}>
+            Новый курс
+          </button>
+        }
+      >
         {message && <p className="hint">{message}</p>}
         {courses.length === 0 && <EmptyState message="Курсов пока нет." />}
         {courses.length > 0 && (
@@ -335,7 +355,17 @@ export function TeacherDashboard() {
 
       <div className="teacher-layout">
         <div className="teacher-main-column">
-          <SectionCard title={selectedCourse?.title || "Структура курса"} actions={selectedCourseId ? <div className="chip-row"><button onClick={editCourse}>Редактировать курс</button><button onClick={addModule}>Добавить модуль</button></div> : undefined}>
+          <SectionCard
+            title={selectedCourse?.title || "Структура курса"}
+            actions={
+              selectedCourseId ? (
+                <div className="chip-row">
+                  <button onClick={editCourse}>Редактировать курс</button>
+                  <button onClick={addModule}>Добавить модуль</button>
+                </div>
+              ) : undefined
+            }
+          >
             {!tree && <EmptyState message="Выберите курс для просмотра структуры." />}
             {tree && (
               <>
@@ -346,10 +376,22 @@ export function TeacherDashboard() {
                     <p>{tree.description || "Соберите здесь программу: модули, уроки, задания и участников."}</p>
                   </div>
                   <div className="teacher-stat-grid">
-                    <div className="teacher-stat-tile"><span>Модули</span><strong>{stats.modules}</strong></div>
-                    <div className="teacher-stat-tile"><span>Уроки</span><strong>{stats.lessons}</strong></div>
-                    <div className="teacher-stat-tile"><span>Задания</span><strong>{stats.assignments}</strong></div>
-                    <div className="teacher-stat-tile"><span>Участники</span><strong>{participants.length}</strong></div>
+                    <div className="teacher-stat-tile">
+                      <span>Модули</span>
+                      <strong>{stats.modules}</strong>
+                    </div>
+                    <div className="teacher-stat-tile">
+                      <span>Уроки</span>
+                      <strong>{stats.lessons}</strong>
+                    </div>
+                    <div className="teacher-stat-tile">
+                      <span>Задания</span>
+                      <strong>{stats.assignments}</strong>
+                    </div>
+                    <div className="teacher-stat-tile">
+                      <span>Участники</span>
+                      <strong>{participants.length}</strong>
+                    </div>
                   </div>
                 </div>
                 <div className="teacher-structure">
@@ -373,7 +415,9 @@ export function TeacherDashboard() {
                           <div key={lesson.id} className="teacher-lesson-card">
                             <div className="teacher-item-head compact">
                               <div>
-                                <span className="teacher-item-kicker">Урок {module.order_index}.{lesson.order_index}</span>
+                                <span className="teacher-item-kicker">
+                                  Урок {module.order_index}.{lesson.order_index}
+                                </span>
                                 <h4>{lesson.title}</h4>
                                 <p>{lesson.theory_text || "Добавьте теорию и материалы урока."}</p>
                               </div>
@@ -385,10 +429,22 @@ export function TeacherDashboard() {
                             <div className="teacher-assignment-list">
                               {lesson.assignments.length === 0 && <p className="hint">Заданий пока нет.</p>}
                               {lesson.assignments.map((assignment) => (
-                                <div key={assignment.id} className={selectedAssignmentId === assignment.id ? "teacher-assignment-item active" : "teacher-assignment-item"}>
-                                  <button className="teacher-assignment-item__main" onClick={() => setSelectedAssignmentId(assignment.id)}>
+                                <div
+                                  key={assignment.id}
+                                  className={
+                                    selectedAssignmentId === assignment.id
+                                      ? "teacher-assignment-item active"
+                                      : "teacher-assignment-item"
+                                  }
+                                >
+                                  <button
+                                    className="teacher-assignment-item__main"
+                                    onClick={() => setSelectedAssignmentId(assignment.id)}
+                                  >
                                     <strong>{assignment.title}</strong>
-                                    <span>{assignmentLabel(assignment.assignment_type)} | {assignment.max_score} баллов</span>
+                                    <span>
+                                      {assignmentLabel(assignment.assignment_type)} | {assignment.max_score} баллов
+                                    </span>
                                   </button>
                                   <button onClick={() => editAssignment(assignment)}>Редактировать</button>
                                 </div>
@@ -458,50 +514,151 @@ export function TeacherDashboard() {
           <SectionCard title={editorTitle}>
             {editor.type === "course" && (
               <form className="form-grid teacher-editor-form" onSubmit={submitCourse}>
-                <input value={courseForm.title} onChange={(event) => setCourseForm((current) => ({ ...current, title: event.target.value }))} placeholder="Название курса" required />
-                <textarea value={courseForm.description} onChange={(event) => setCourseForm((current) => ({ ...current, description: event.target.value }))} placeholder="Описание курса" rows={5} />
+                <input
+                  value={courseForm.title}
+                  onChange={(event) => setCourseForm((current) => ({ ...current, title: event.target.value }))}
+                  placeholder="Название курса"
+                  required
+                />
+                <textarea
+                  value={courseForm.description}
+                  onChange={(event) => setCourseForm((current) => ({ ...current, description: event.target.value }))}
+                  placeholder="Описание курса"
+                  rows={5}
+                />
                 {editor.mode === "edit" && (
                   <label className="inline">
-                    <input type="checkbox" checked={courseForm.is_published} onChange={(event) => setCourseForm((current) => ({ ...current, is_published: event.target.checked }))} />
+                    <input
+                      type="checkbox"
+                      checked={courseForm.is_published}
+                      onChange={(event) =>
+                        setCourseForm((current) => ({ ...current, is_published: event.target.checked }))
+                      }
+                    />
                     Курс опубликован
                   </label>
                 )}
-                <button className="primary" type="submit">{editor.mode === "create" ? "Создать курс" : "Сохранить курс"}</button>
+                <button className="primary" type="submit">
+                  {editor.mode === "create" ? "Создать курс" : "Сохранить курс"}
+                </button>
               </form>
             )}
             {editor.type === "module" && (
               <form className="form-grid teacher-editor-form" onSubmit={submitModule}>
-                <input value={moduleForm.title} onChange={(event) => setModuleForm((current) => ({ ...current, title: event.target.value }))} placeholder="Название модуля" required />
-                <textarea value={moduleForm.description} onChange={(event) => setModuleForm((current) => ({ ...current, description: event.target.value }))} placeholder="Описание модуля" rows={4} />
-                <input type="number" min={1} value={moduleForm.order_index} onChange={(event) => setModuleForm((current) => ({ ...current, order_index: Number(event.target.value) }))} />
-                <button className="primary" type="submit">{editor.mode === "create" ? "Добавить модуль" : "Сохранить модуль"}</button>
+                <input
+                  value={moduleForm.title}
+                  onChange={(event) => setModuleForm((current) => ({ ...current, title: event.target.value }))}
+                  placeholder="Название модуля"
+                  required
+                />
+                <textarea
+                  value={moduleForm.description}
+                  onChange={(event) => setModuleForm((current) => ({ ...current, description: event.target.value }))}
+                  placeholder="Описание модуля"
+                  rows={4}
+                />
+                <input
+                  type="number"
+                  min={1}
+                  value={moduleForm.order_index}
+                  onChange={(event) => setModuleForm((current) => ({ ...current, order_index: Number(event.target.value) }))}
+                />
+                <button className="primary" type="submit">
+                  {editor.mode === "create" ? "Добавить модуль" : "Сохранить модуль"}
+                </button>
               </form>
             )}
             {editor.type === "lesson" && (
               <form className="form-grid teacher-editor-form" onSubmit={submitLesson}>
-                <input value={lessonForm.title} onChange={(event) => setLessonForm((current) => ({ ...current, title: event.target.value }))} placeholder="Название урока" required />
-                <textarea value={lessonForm.theory_text} onChange={(event) => setLessonForm((current) => ({ ...current, theory_text: event.target.value }))} placeholder="Теория урока" rows={8} />
-                <input type="number" min={1} value={lessonForm.order_index} onChange={(event) => setLessonForm((current) => ({ ...current, order_index: Number(event.target.value) }))} />
-                <button className="primary" type="submit">{editor.mode === "create" ? "Добавить урок" : "Сохранить урок"}</button>
+                <input
+                  value={lessonForm.title}
+                  onChange={(event) => setLessonForm((current) => ({ ...current, title: event.target.value }))}
+                  placeholder="Название урока"
+                  required
+                />
+                <textarea
+                  value={lessonForm.theory_text}
+                  onChange={(event) => setLessonForm((current) => ({ ...current, theory_text: event.target.value }))}
+                  placeholder="Теория урока"
+                  rows={8}
+                />
+                <input
+                  type="number"
+                  min={1}
+                  value={lessonForm.order_index}
+                  onChange={(event) => setLessonForm((current) => ({ ...current, order_index: Number(event.target.value) }))}
+                />
+                <button className="primary" type="submit">
+                  {editor.mode === "create" ? "Добавить урок" : "Сохранить урок"}
+                </button>
               </form>
             )}
             {editor.type === "assignment" && (
               <form className="form-grid teacher-editor-form" onSubmit={submitAssignment}>
-                <input value={assignmentForm.title} onChange={(event) => setAssignmentForm((current) => ({ ...current, title: event.target.value }))} placeholder="Название задания" required />
-                <textarea value={assignmentForm.description} onChange={(event) => setAssignmentForm((current) => ({ ...current, description: event.target.value }))} placeholder="Описание задания" rows={4} />
-                <select value={assignmentForm.assignment_type} onChange={(event) => setAssignmentForm((current) => ({ ...current, assignment_type: event.target.value as Kind }))}>
+                <input
+                  value={assignmentForm.title}
+                  onChange={(event) => setAssignmentForm((current) => ({ ...current, title: event.target.value }))}
+                  placeholder="Название задания"
+                  required
+                />
+                <textarea
+                  value={assignmentForm.description}
+                  onChange={(event) => setAssignmentForm((current) => ({ ...current, description: event.target.value }))}
+                  placeholder="Описание задания"
+                  rows={4}
+                />
+                <select
+                  value={assignmentForm.assignment_type}
+                  onChange={(event) =>
+                    setAssignmentForm((current) => ({ ...current, assignment_type: event.target.value as Kind }))
+                  }
+                >
                   <option value="python">Python</option>
                   <option value="blocks">Блоки</option>
                   <option value="test">Тест</option>
                 </select>
-                <input type="number" min={1} value={assignmentForm.max_score} onChange={(event) => setAssignmentForm((current) => ({ ...current, max_score: Number(event.target.value) }))} />
-                {assignmentForm.assignment_type === "blocks" && <button type="button" onClick={() => setAssignmentForm((current) => ({ ...current, content_payload: current.content_payload || DEFAULT_BLOCK_ASSIGNMENT_TEMPLATE }))}>Подставить шаблон блоков</button>}
-                <textarea value={assignmentForm.content_payload} onChange={(event) => setAssignmentForm((current) => ({ ...current, content_payload: event.target.value }))} placeholder="Payload задания" rows={8} />
+                <input
+                  type="number"
+                  min={1}
+                  value={assignmentForm.max_score}
+                  onChange={(event) =>
+                    setAssignmentForm((current) => ({ ...current, max_score: Number(event.target.value) }))
+                  }
+                />
+                {assignmentForm.assignment_type === "blocks" && (
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setAssignmentForm((current) => ({
+                        ...current,
+                        content_payload: current.content_payload || DEFAULT_BLOCK_ASSIGNMENT_TEMPLATE,
+                      }))
+                    }
+                  >
+                    Подставить шаблон блоков
+                  </button>
+                )}
+                <textarea
+                  value={assignmentForm.content_payload}
+                  onChange={(event) =>
+                    setAssignmentForm((current) => ({ ...current, content_payload: event.target.value }))
+                  }
+                  placeholder="Payload задания"
+                  rows={8}
+                />
                 <label className="inline">
-                  <input type="checkbox" checked={assignmentForm.is_auto_check} onChange={(event) => setAssignmentForm((current) => ({ ...current, is_auto_check: event.target.checked }))} />
+                  <input
+                    type="checkbox"
+                    checked={assignmentForm.is_auto_check}
+                    onChange={(event) =>
+                      setAssignmentForm((current) => ({ ...current, is_auto_check: event.target.checked }))
+                    }
+                  />
                   Автопроверка
                 </label>
-                <button className="primary" type="submit">{editor.mode === "create" ? "Добавить задание" : "Сохранить задание"}</button>
+                <button className="primary" type="submit">
+                  {editor.mode === "create" ? "Добавить задание" : "Сохранить задание"}
+                </button>
               </form>
             )}
           </SectionCard>
@@ -511,19 +668,35 @@ export function TeacherDashboard() {
             {selectedCourseId && participants.length === 0 && <EmptyState message="Участников пока нет." />}
             {participants.length > 0 && (
               <div className="teacher-participant-list">
-                {participants.map((participant) => (
-                  <article key={participant.id} className="teacher-participant-card">
-                    <div className="teacher-participant-avatar">{initials(participant.full_name)}</div>
-                    <div className="teacher-participant-info">
-                      <strong>{participant.full_name}</strong>
-                      <span>{participant.email}</span>
-                    </div>
-                    <div className="teacher-participant-meta">
-                      <span>Уровень {participant.level}</span>
-                      <span>{participant.xp} XP</span>
-                    </div>
-                  </article>
-                ))}
+                {participants.map((participant) => {
+                  const avatarUrl = participantAvatar(participant.id);
+
+                  return (
+                    <article key={participant.id} className="teacher-participant-card">
+                      <div className="teacher-participant-avatar">
+                        {avatarUrl ? (
+                          <img
+                            src={avatarUrl}
+                            alt={participant.full_name}
+                            className="teacher-participant-avatar-image"
+                          />
+                        ) : (
+                          <span className="teacher-participant-avatar-fallback">
+                            {initials(participant.full_name)}
+                          </span>
+                        )}
+                      </div>
+                      <div className="teacher-participant-info">
+                        <strong>{participant.full_name}</strong>
+                        <span>{participant.email}</span>
+                      </div>
+                      <div className="teacher-participant-meta">
+                        <span>Уровень {participant.level}</span>
+                        <span>{participant.xp} XP</span>
+                      </div>
+                    </article>
+                  );
+                })}
               </div>
             )}
           </SectionCard>

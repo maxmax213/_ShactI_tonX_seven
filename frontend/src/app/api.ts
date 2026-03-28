@@ -76,48 +76,48 @@ export function setToken(value: string | null): void {
   }
 }
 
-function toFriendlyErrorMessage(body: string, status: number): string {
+function toFriendlyErrorMessage(body: string, status: number, contentType = ""): string {
   const fallback = "Что-то пошло не так. Попробуй ещё раз.";
 
   try {
-    const parsed = JSON.parse(body) as { detail?: unknown };
-    const detail =
-      typeof parsed.detail === "string"
-        ? parsed.detail
-        : Array.isArray(parsed.detail)
+    if (contentType.includes("application/json")) {
+      const parsed = JSON.parse(body) as { detail?: unknown };
+      const detail =
+        pydanticDetailMessage(parsed.detail) ??
+        (typeof parsed.detail === "string"
           ? parsed.detail
-              .map((item) =>
-                typeof item === "object" && item && "msg" in item && typeof item.msg === "string"
-                  ? item.msg
-                  : null,
-              )
-              .filter((item): item is string => Boolean(item))
-              .join(" ")
-          : "";
+          : Array.isArray(parsed.detail)
+            ? parsed.detail
+                .map((item) =>
+                  typeof item === "object" && item && "msg" in item && typeof item.msg === "string"
+                    ? item.msg
+                    : null,
+                )
+                .filter((item): item is string => Boolean(item))
+                .join(" ")
+            : "");
 
-    const normalized = detail.toLowerCase();
+      const normalized = detail.toLowerCase();
 
-    if (
-      normalized.includes("wrong email or password") ||
-      normalized.includes("не подошли")
-    ) {
-      return "Почта или пароль не подошли. Проверь их и попробуй ещё раз.";
-    }
+      if (normalized.includes("wrong email or password") || normalized.includes("не подошли")) {
+        return "Почта или пароль не подошли. Проверь их и попробуй ещё раз.";
+      }
 
-    if (normalized.includes("email already exists") || normalized.includes("уже занят")) {
-      return "Такой адрес уже занят. Попробуй войти или используй другую почту.";
-    }
+      if (normalized.includes("email already exists") || normalized.includes("уже занят")) {
+        return "Такой адрес уже занят. Попробуй войти или используй другую почту.";
+      }
 
-    if (normalized.includes("at least 8 characters")) {
-      return "Пароль должен быть не короче 8 символов.";
-    }
+      if (normalized.includes("at least 8 characters")) {
+        return "Пароль должен быть не короче 8 символов.";
+      }
 
-    if (normalized.includes("at least 2 characters")) {
-      return "Напиши имя чуть длиннее, пожалуйста.";
-    }
+      if (normalized.includes("at least 2 characters")) {
+        return "Напиши имя чуть длиннее, пожалуйста.";
+      }
 
-    if (detail) {
-      return detail;
+      if (detail) {
+        return detail;
+      }
     }
   } catch {
     // Ignore JSON parse failures and fall back to plain text handling.
@@ -127,7 +127,8 @@ function toFriendlyErrorMessage(body: string, status: number): string {
     return "Почта или пароль не подошли. Проверь их и попробуй ещё раз.";
   }
 
-  return body || fallback;
+  const cleaned = stripHtml(body);
+  return cleaned || fallback;
 }
 
 async function apiRequest<T>(path: string, options: RequestInit = {}): Promise<T> {
@@ -145,21 +146,7 @@ async function apiRequest<T>(path: string, options: RequestInit = {}): Promise<T
   if (!response.ok) {
     const body = await response.text();
     const contentType = response.headers.get("content-type") ?? "";
-
-    if (contentType.includes("application/json")) {
-      let parsedMessage: string | null = null;
-      try {
-        const parsed = JSON.parse(body) as { detail?: unknown };
-        parsedMessage = pydanticDetailMessage(parsed.detail);
-      } catch {
-        parsedMessage = null;
-      }
-      throw new Error(parsedMessage || stripHtml(body) || `Request failed: ${response.status}`);
-    }
-
-    const cleaned = stripHtml(body);
-    throw new Error(cleaned || `Request failed: ${response.status}`);
-    throw new Error(toFriendlyErrorMessage(body, response.status));
+    throw new Error(toFriendlyErrorMessage(body, response.status, contentType));
   }
 
   if (response.status === 204) {
@@ -223,7 +210,10 @@ export const api = {
     });
   },
 
-  updateCourse(payload: { title: string; description?: string | null; is_published?: boolean | null }, courseId: number) {
+  updateCourse(
+    payload: { title: string; description?: string | null; is_published?: boolean | null },
+    courseId: number,
+  ) {
     return apiRequest<Course>(`/courses/${courseId}`, {
       method: "PATCH",
       body: JSON.stringify(payload),
