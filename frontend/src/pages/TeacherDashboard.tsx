@@ -6,6 +6,7 @@ import type {
   Achievement,
   Assignment,
   Course,
+  CommentView,
   CourseTree,
   Submission,
   TestContentPayload,
@@ -180,6 +181,7 @@ export function TeacherDashboard() {
   const [selectedAssignment, setSelectedAssignment] = useState<Assignment | null>(null);
   const [testQuestions, setTestQuestions] = useState<TestQuestion[]>([]);
   const [assignmentSubmissions, setAssignmentSubmissions] = useState<Submission[]>([]);
+  const [assignmentComments, setAssignmentComments] = useState<CommentView[]>([]);
   const [message, setMessage] = useState<string>("");
 
   const [courseForm, setCourseForm] = useState({ title: "", description: "" });
@@ -237,17 +239,20 @@ export function TeacherDashboard() {
       setAssignmentSubmissions([]);
       setSelectedAssignment(null);
       setTestQuestions([]);
+      setAssignmentComments([]);
       return;
     }
 
     const assignmentId: number = selectedAssignmentId;
     async function loadAssignmentDetails() {
-      const [submissions, assignment] = await Promise.all([
+      const [submissions, assignment, comments] = await Promise.all([
         api.assignmentSubmissions(assignmentId),
         api.assignment(assignmentId),
+        api.assignmentComments(assignmentId),
       ]);
       setAssignmentSubmissions(submissions);
       setSelectedAssignment(assignment);
+      setAssignmentComments(comments);
       if (assignment.assignment_type === "test") {
         setTestQuestions(normalizeTestQuestions(assignment.content_payload));
       } else {
@@ -262,6 +267,12 @@ export function TeacherDashboard() {
     if (!selectedTree) return [];
     return selectedTree.modules.flatMap((module) => module.lessons);
   }, [selectedTree]);
+
+  const studentMap = useMemo(() => {
+    const map = new Map<number, User>();
+    students.forEach((student) => map.set(student.id, student));
+    return map;
+  }, [students]);
 
   async function refreshCourses() {
     const myCourses = await api.myCourses();
@@ -562,7 +573,30 @@ export function TeacherDashboard() {
           {assignmentSubmissions.map((submission) => (
             <article key={submission.id} className="submission-item">
               <p>
-                Ученик #{submission.student_id}, попытка {submission.attempt}, статус: {submissionStatusLabel(submission.status)}
+                <span className="student-inline">
+                  <span className="student-inline-avatar">
+                    {(() => {
+                      const student = studentMap.get(submission.student_id);
+                      const stored = localStorage.getItem(`edu_orbit_avatar_${submission.student_id}`);
+                      if (stored) return <img src={stored} alt="avatar" />;
+                      const name = student?.full_name ?? `#${submission.student_id}`;
+                      const initials = name
+                        .trim()
+                        .split(/\s+/)
+                        .map((part) => part[0])
+                        .filter(Boolean)
+                        .slice(0, 2)
+                        .join("")
+                        .toUpperCase();
+                      return initials || "U";
+                    })()}
+                  </span>
+                  <span className="student-inline-meta">
+                    <strong>{studentMap.get(submission.student_id)?.full_name ?? `Ученик #${submission.student_id}`}</strong>
+                    <span className="student-inline-sub">XP: {studentMap.get(submission.student_id)?.xp ?? 0}</span>
+                  </span>
+                </span>
+                , попытка {submission.attempt}, статус: {submissionStatusLabel(submission.status)}
               </p>
               {renderSubmissionContent(submission, selectedAssignment, testQuestions)}
               <div className="chip-row">
@@ -574,6 +608,45 @@ export function TeacherDashboard() {
               </div>
             </article>
           ))}
+        </SectionCard>
+
+        <SectionCard title="Комментарии к заданию">
+          {selectedAssignmentId === null && <EmptyState message="Выберите задание, чтобы увидеть комментарии" />}
+          {selectedAssignmentId !== null && assignmentComments.length === 0 && (
+            <EmptyState message="Комментариев пока нет" />
+          )}
+          {assignmentComments.length > 0 && (
+            <div className="comment-list">
+              {assignmentComments.map((comment) => (
+                <article key={comment.id} className="comment-item">
+                  <div className="student-inline">
+                    <span className="student-inline-avatar">
+                      {(() => {
+                        const author = studentMap.get(comment.author_id);
+                        const stored = localStorage.getItem(`edu_orbit_avatar_${comment.author_id}`);
+                        if (stored) return <img src={stored} alt="avatar" />;
+                        const name = author?.full_name ?? comment.author_name;
+                        const initials = name
+                          .trim()
+                          .split(/\s+/)
+                          .map((part) => part[0])
+                          .filter(Boolean)
+                          .slice(0, 2)
+                          .join("")
+                          .toUpperCase();
+                        return initials || "U";
+                      })()}
+                    </span>
+                    <span className="student-inline-meta">
+                      <strong>{studentMap.get(comment.author_id)?.full_name ?? comment.author_name}</strong>
+                      <span className="student-inline-sub">XP: {studentMap.get(comment.author_id)?.xp ?? 0}</span>
+                    </span>
+                  </div>
+                  <p>{comment.content}</p>
+                </article>
+              ))}
+            </div>
+          )}
         </SectionCard>
 
         <SectionCard title="Ачивки">

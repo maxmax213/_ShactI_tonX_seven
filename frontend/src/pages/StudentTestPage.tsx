@@ -2,7 +2,7 @@ import { FormEvent, useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 
 import { api } from "../app/api";
-import type { Assignment, TestContentPayload, TestQuestion } from "../app/types";
+import type { Assignment, CommentView, TestContentPayload, TestQuestion } from "../app/types";
 import { EmptyState } from "../components/EmptyState";
 import { SectionCard } from "../components/SectionCard";
 
@@ -22,6 +22,8 @@ export function StudentTestPage() {
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
+  const [comments, setComments] = useState<CommentView[]>([]);
+  const [newComment, setNewComment] = useState("");
 
   useEffect(() => {
     async function load() {
@@ -67,6 +69,23 @@ export function StudentTestPage() {
 
     load().catch((err) => setMessage(`Не удалось загрузить тест: ${String(err)}`));
   }, [assignmentId, navigate]);
+  async function refreshComments(targetAssignmentId: number): Promise<void> {
+    try {
+      setComments(await api.assignmentComments(targetAssignmentId));
+    } catch (err) {
+      setMessage(`Не удалось загрузить комментарии: ${String(err)}`);
+    }
+  }
+
+  useEffect(() => {
+    if (!assignment?.id) {
+      setComments([]);
+      return;
+    }
+
+    setNewComment("");
+    refreshComments(assignment.id).catch(() => null);
+  }, [assignment?.id]);
 
   function setAnswer(questionId: string, value: unknown) {
     setAnswers((current) => ({ ...current, [questionId]: value }));
@@ -97,6 +116,24 @@ export function StudentTestPage() {
       setMessage(`Не удалось отправить тест: ${String(err)}`);
     } finally {
       setSubmitting(false);
+    }
+  }
+
+  async function onSendComment(event: FormEvent) {
+    event.preventDefault();
+    if (!assignment?.id || !newComment.trim()) return;
+
+    try {
+      await api.createComment({
+        assignment_id: assignment.id,
+        content: newComment.trim(),
+        parent_comment_id: null,
+      });
+
+      setNewComment("");
+      await refreshComments(assignment.id);
+    } catch (err) {
+      setMessage(`РќРµ СѓРґР°Р»РѕСЃСЊ РѕС‚РїСЂР°РІРёС‚СЊ РєРѕРјРјРµРЅС‚Р°СЂРёР№: ${String(err)}`);
     }
   }
 
@@ -204,6 +241,41 @@ export function StudentTestPage() {
           </div>
         </form>
       )}
+      {assignment && (
+        <>
+          <div className="lesson-divider" />
+
+          <div className="lesson-testing">
+            <h3>Минифорум по тесту</h3>
+            <form className="inline-form" onSubmit={onSendComment}>
+              <input
+                placeholder="Комментарий к тесту"
+                value={newComment}
+                onChange={(event) => setNewComment(event.target.value)}
+              />
+              <button type="submit">Отправить</button>
+            </form>
+
+            {comments.length === 0 && <p className="hint">Пока нет комментариев по этому тесту</p>}
+            {comments.length > 0 && (
+              <div className="comment-list">
+                {comments.map((comment) => (
+                  <article key={comment.id} className="comment-item">
+                    <strong>{comment.author_name}</strong>
+                    <p>{comment.content}</p>
+                  </article>
+                ))}
+              </div>
+            )}
+          </div>
+        </>
+      )}
     </SectionCard>
   );
 }
+
+
+
+
+
+
