@@ -28,6 +28,60 @@ export function setToken(value: string | null): void {
   }
 }
 
+function toFriendlyErrorMessage(body: string, status: number): string {
+  const fallback = "Что-то пошло не так. Попробуй ещё раз.";
+
+  try {
+    const parsed = JSON.parse(body) as { detail?: unknown };
+    const detail =
+      typeof parsed.detail === "string"
+        ? parsed.detail
+        : Array.isArray(parsed.detail)
+          ? parsed.detail
+              .map((item) =>
+                typeof item === "object" && item && "msg" in item && typeof item.msg === "string"
+                  ? item.msg
+                  : null,
+              )
+              .filter((item): item is string => Boolean(item))
+              .join(" ")
+          : "";
+
+    const normalized = detail.toLowerCase();
+
+    if (
+      normalized.includes("wrong email or password") ||
+      normalized.includes("не подошли")
+    ) {
+      return "Почта или пароль не подошли. Проверь их и попробуй ещё раз.";
+    }
+
+    if (normalized.includes("email already exists") || normalized.includes("уже занят")) {
+      return "Такой адрес уже занят. Попробуй войти или используй другую почту.";
+    }
+
+    if (normalized.includes("at least 8 characters")) {
+      return "Пароль должен быть не короче 8 символов.";
+    }
+
+    if (normalized.includes("at least 2 characters")) {
+      return "Напиши имя чуть длиннее, пожалуйста.";
+    }
+
+    if (detail) {
+      return detail;
+    }
+  } catch {
+    // Ignore JSON parse failures and fall back to plain text handling.
+  }
+
+  if (status === 401) {
+    return "Почта или пароль не подошли. Проверь их и попробуй ещё раз.";
+  }
+
+  return body || fallback;
+}
+
 async function apiRequest<T>(path: string, options: RequestInit = {}): Promise<T> {
   const headers = new Headers(options.headers ?? {});
   headers.set("Content-Type", "application/json");
@@ -42,7 +96,7 @@ async function apiRequest<T>(path: string, options: RequestInit = {}): Promise<T
 
   if (!response.ok) {
     const body = await response.text();
-    throw new Error(body || `Request failed: ${response.status}`);
+    throw new Error(toFriendlyErrorMessage(body, response.status));
   }
 
   if (response.status === 204) {
