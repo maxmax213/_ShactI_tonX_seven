@@ -23,7 +23,7 @@ export function AuthPage() {
   const [registerForm, setRegisterForm] = useState(DEFAULT_REGISTER_FORM);
 
   const title = useMemo(
-    () => (mode === "login" ? "Вход в Edu Orbit" : "Создание аккаунта"),
+    () => (mode === "login" ? "Вход в Обучайку" : "Создание аккаунта"),
     [mode],
   );
   const subtitle = useMemo(
@@ -79,7 +79,7 @@ export function AuthPage() {
         <div className="hero-panel__content">
           <div className="hero-panel__intro">
             <span className="hero-panel__eyebrow">Кабинет входа</span>
-            <h1>Добро пожаловать в Edu Orbit</h1>
+            <h1>Добро пожаловать в Обучайку</h1>
             <p>Собирай решения, открывай уровни и превращай обучение в настоящее приключение.</p>
           </div>
           <div className="hero-panel__showcase">

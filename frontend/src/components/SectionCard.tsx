@@ -8,12 +8,15 @@ export function SectionCard({
   actions?: React.ReactNode;
 }) {
   return (
-    <section className="card">
-      <div className="card-head">
-        <h2>{title}</h2>
-        {actions}
+    <section className="card section-card">
+      <div className="card-head section-card__head">
+        <div className="section-card__title-block">
+          <span className="section-card__eyebrow">Раздел</span>
+          <h2>{title}</h2>
+        </div>
+        {actions && <div className="section-card__actions">{actions}</div>}
       </div>
-      <div className="card-body">{children}</div>
+      <div className="card-body section-card__body">{children}</div>
     </section>
   );
 }

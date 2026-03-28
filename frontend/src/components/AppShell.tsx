@@ -72,7 +72,13 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   return (
     <div className="layout">
       <header className="topbar">
-        <div className="brand">Edu Orbit</div>
+        <div className="brand">
+          <span className="brand-mark">EO</span>
+          <div className="brand-copy">
+            <strong>Обучайка</strong>
+            <span>Учёба, прогресс и миссии в одном ритме</span>
+          </div>
+        </div>
         <nav className="nav">
           {user?.role === "teacher" && <NavLink to="/teacher">Учитель</NavLink>}
           {user?.role === "student" && <NavLink to="/student">Ученик</NavLink>}
@@ -122,7 +128,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               )}
             </div>
           </div>
-          <button onClick={logout}>Выйти</button>
+          <button className="topbar-logout" onClick={logout}>
+            Выйти
+          </button>
         </div>
       </header>
       <main className="main-grid">{children}</main>
