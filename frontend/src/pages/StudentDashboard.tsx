@@ -376,12 +376,13 @@ export function StudentDashboard() {
   }, [stats, user]);
 
   function commentXp(comment: CommentView): number {
+    if (typeof comment.author_xp === "number") return comment.author_xp;
     if (comment.author_id === user?.id) return stats?.xp ?? user?.xp ?? 0;
     return 0;
   }
 
-  function commentAvatar(authorId: number, authorName: string): React.ReactNode {
-    const stored = localStorage.getItem(`edu_orbit_avatar_${authorId}`);
+  function commentAvatar(authorId: number, authorName: string, authorAvatarUrl?: string | null): React.ReactNode {
+    const stored = authorAvatarUrl || localStorage.getItem(`edu_orbit_avatar_${authorId}`);
     if (stored) return <img src={stored} alt="avatar" />;
     return initials(authorName);
   }
@@ -1198,7 +1199,7 @@ export function StudentDashboard() {
                               <article key={comment.id} className="comment-item">
                                 <div className="student-inline">
                                   <span className="student-inline-avatar">
-                                    {commentAvatar(comment.author_id, comment.author_name)}
+                                    {commentAvatar(comment.author_id, comment.author_name, comment.author_avatar_url)}
                                   </span>
                                   <span className="student-inline-meta">
                                     <strong>{comment.author_name}</strong>
@@ -1289,7 +1290,7 @@ export function StudentDashboard() {
                               <article key={comment.id} className="comment-item">
                                 <div className="student-inline">
                                   <span className="student-inline-avatar">
-                                    {commentAvatar(comment.author_id, comment.author_name)}
+                                    {commentAvatar(comment.author_id, comment.author_name, comment.author_avatar_url)}
                                   </span>
                                   <span className="student-inline-meta">
                                     <strong>{comment.author_name}</strong>

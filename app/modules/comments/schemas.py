@@ -26,6 +26,8 @@ class CommentView(BaseModel):
     assignment_id: int
     author_id: int
     author_name: str
+    author_xp: int
+    author_level: int
     parent_comment_id: int | None
     content: str
     created_at: datetime

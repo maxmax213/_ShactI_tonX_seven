@@ -34,14 +34,16 @@ class CommentsService:
 
         author_ids = {comment.author_id for comment in comments}
         users = db.query(User).filter(User.id.in_(author_ids)).all() if author_ids else []
-        user_map = {user.id: user.full_name for user in users}
+        user_map = {user.id: user for user in users}
 
         return [
             CommentView(
                 id=comment.id,
                 assignment_id=comment.assignment_id,
                 author_id=comment.author_id,
-                author_name=user_map.get(comment.author_id, "Unknown"),
+                author_name=user_map.get(comment.author_id).full_name if comment.author_id in user_map else "Unknown",
+                author_xp=user_map.get(comment.author_id).xp if comment.author_id in user_map else 0,
+                author_level=user_map.get(comment.author_id).level if comment.author_id in user_map else 1,
                 parent_comment_id=comment.parent_comment_id,
                 content=comment.content,
                 created_at=comment.created_at,
