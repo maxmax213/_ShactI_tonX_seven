@@ -7,6 +7,7 @@ import type {
   CommentRead,
   CommentView,
   Course,
+  CourseParticipant,
   CourseTree,
   LeaderboardEntry,
   LessonSurvey,
@@ -75,6 +76,60 @@ export function setToken(value: string | null): void {
   }
 }
 
+function toFriendlyErrorMessage(body: string, status: number): string {
+  const fallback = "Что-то пошло не так. Попробуй ещё раз.";
+
+  try {
+    const parsed = JSON.parse(body) as { detail?: unknown };
+    const detail =
+      typeof parsed.detail === "string"
+        ? parsed.detail
+        : Array.isArray(parsed.detail)
+          ? parsed.detail
+              .map((item) =>
+                typeof item === "object" && item && "msg" in item && typeof item.msg === "string"
+                  ? item.msg
+                  : null,
+              )
+              .filter((item): item is string => Boolean(item))
+              .join(" ")
+          : "";
+
+    const normalized = detail.toLowerCase();
+
+    if (
+      normalized.includes("wrong email or password") ||
+      normalized.includes("не подошли")
+    ) {
+      return "Почта или пароль не подошли. Проверь их и попробуй ещё раз.";
+    }
+
+    if (normalized.includes("email already exists") || normalized.includes("уже занят")) {
+      return "Такой адрес уже занят. Попробуй войти или используй другую почту.";
+    }
+
+    if (normalized.includes("at least 8 characters")) {
+      return "Пароль должен быть не короче 8 символов.";
+    }
+
+    if (normalized.includes("at least 2 characters")) {
+      return "Напиши имя чуть длиннее, пожалуйста.";
+    }
+
+    if (detail) {
+      return detail;
+    }
+  } catch {
+    // Ignore JSON parse failures and fall back to plain text handling.
+  }
+
+  if (status === 401) {
+    return "Почта или пароль не подошли. Проверь их и попробуй ещё раз.";
+  }
+
+  return body || fallback;
+}
+
 async function apiRequest<T>(path: string, options: RequestInit = {}): Promise<T> {
   const headers = new Headers(options.headers ?? {});
   headers.set("Content-Type", "application/json");
@@ -104,6 +159,7 @@ async function apiRequest<T>(path: string, options: RequestInit = {}): Promise<T
 
     const cleaned = stripHtml(body);
     throw new Error(cleaned || `Request failed: ${response.status}`);
+    throw new Error(toFriendlyErrorMessage(body, response.status));
   }
 
   if (response.status === 204) {
@@ -167,6 +223,13 @@ export const api = {
     });
   },
 
+  updateCourse(payload: { title: string; description?: string | null; is_published?: boolean | null }, courseId: number) {
+    return apiRequest<Course>(`/courses/${courseId}`, {
+      method: "PATCH",
+      body: JSON.stringify(payload),
+    });
+  },
+
   publishCourse(courseId: number, isPublished: boolean) {
     return apiRequest<Course>(`/courses/${courseId}/publish?is_published=${isPublished}`, {
       method: "POST",
@@ -175,6 +238,10 @@ export const api = {
 
   courseTree(courseId: number) {
     return apiRequest<CourseTree>(`/courses/${courseId}/tree`);
+  },
+
+  courseParticipants(courseId: number) {
+    return apiRequest<CourseParticipant[]>(`/courses/${courseId}/participants`);
   },
 
   createModule(courseId: number, payload: { title: string; description?: string; order_index: number }) {
@@ -187,11 +254,31 @@ export const api = {
     );
   },
 
+  updateModule(moduleId: number, payload: { title: string; description?: string | null; order_index: number }) {
+    return apiRequest<{ id: number; course_id: number; title: string; description: string | null; order_index: number }>(
+      `/courses/modules/${moduleId}`,
+      {
+        method: "PATCH",
+        body: JSON.stringify(payload),
+      },
+    );
+  },
+
   createLesson(moduleId: number, payload: { title: string; theory_text?: string; order_index: number }) {
     return apiRequest<{ id: number; module_id: number; title: string; order_index: number }>(
       `/courses/modules/${moduleId}/lessons`,
       {
         method: "POST",
+        body: JSON.stringify(payload),
+      },
+    );
+  },
+
+  updateLesson(lessonId: number, payload: { title: string; theory_text?: string | null; order_index: number }) {
+    return apiRequest<{ id: number; module_id: number; title: string; theory_text: string | null; order_index: number }>(
+      `/courses/lessons/${lessonId}`,
+      {
+        method: "PATCH",
         body: JSON.stringify(payload),
       },
     );
@@ -216,6 +303,23 @@ export const api = {
   }) {
     return apiRequest<Assignment>("/assignments/", {
       method: "POST",
+      body: JSON.stringify(payload),
+    });
+  },
+
+  updateAssignment(
+    assignmentId: number,
+    payload: {
+      title: string;
+      description?: string | null;
+      assignment_type: "blocks" | "python" | "test";
+      max_score: number;
+      is_auto_check: boolean;
+      content_payload?: string | null;
+    },
+  ) {
+    return apiRequest<Assignment>(`/assignments/${assignmentId}`, {
+      method: "PATCH",
       body: JSON.stringify(payload),
     });
   },

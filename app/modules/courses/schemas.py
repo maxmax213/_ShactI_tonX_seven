@@ -6,6 +6,12 @@ class CourseCreate(BaseModel):
     description: str | None = None
 
 
+class CourseUpdate(BaseModel):
+    title: str = Field(min_length=3, max_length=255)
+    description: str | None = None
+    is_published: bool | None = None
+
+
 class CourseRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -23,6 +29,12 @@ class ModuleCreate(BaseModel):
     order_index: int = Field(ge=1)
 
 
+class ModuleUpdate(BaseModel):
+    title: str = Field(min_length=3, max_length=255)
+    description: str | None = None
+    order_index: int = Field(ge=1)
+
+
 class ModuleRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -34,6 +46,12 @@ class ModuleRead(BaseModel):
 
 
 class LessonCreate(BaseModel):
+    title: str = Field(min_length=3, max_length=255)
+    theory_text: str | None = None
+    order_index: int = Field(ge=1)
+
+
+class LessonUpdate(BaseModel):
     title: str = Field(min_length=3, max_length=255)
     theory_text: str | None = None
     order_index: int = Field(ge=1)
@@ -79,3 +97,12 @@ class CourseTreeRead(BaseModel):
     enroll_code: str
     is_published: bool
     modules: list[ModuleTreeRead]
+
+
+class CourseParticipantRead(BaseModel):
+    id: int
+    full_name: str
+    email: str
+    xp: int
+    level: int
+    streak: int
