@@ -1,0 +1,2 @@
+"""Submissions domain package."""
+

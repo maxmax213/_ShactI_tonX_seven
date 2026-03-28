@@ -1,3 +1,4 @@
+import { useEffect, useMemo, useRef, useState } from "react";
 import { NavLink } from "react-router-dom";
 
 import { useAuth } from "../app/auth";
@@ -21,6 +22,51 @@ function initials(fullName: string | undefined): string {
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const { user, logout } = useAuth();
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
+
+  const avatarStorageKey = useMemo(() => {
+    if (!user?.id) return null;
+    return `edu_orbit_avatar_${user.id}`;
+  }, [user?.id]);
+
+  useEffect(() => {
+    if (!avatarStorageKey) {
+      setAvatarUrl(null);
+      return;
+    }
+    const saved = localStorage.getItem(avatarStorageKey);
+    setAvatarUrl(saved);
+  }, [avatarStorageKey]);
+
+  const levelProgress = useMemo(() => {
+    const level = user?.level ?? 1;
+    const xp = user?.xp ?? 0;
+    const minXp = Math.max(0, (level - 1) * 100);
+    const progress = ((xp - minXp) / 100) * 100;
+    return Math.max(0, Math.min(100, progress));
+  }, [user?.level, user?.xp]);
+
+  const xpToNext = useMemo(() => {
+    const level = user?.level ?? 1;
+    const xp = user?.xp ?? 0;
+    return Math.max(0, level * 100 - xp);
+  }, [user?.level, user?.xp]);
+
+  function handleAvatarFile(event: React.ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    if (!file || !avatarStorageKey) return;
+    if (!file.type.startsWith("image/")) return;
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = typeof reader.result === "string" ? reader.result : null;
+      if (!result) return;
+      localStorage.setItem(avatarStorageKey, result);
+      setAvatarUrl(result);
+    };
+    reader.readAsDataURL(file);
+  }
 
   return (
     <div className="layout">
@@ -34,10 +80,41 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         </nav>
         <div className="account">
           <div className="account-badge">
-            <div className="avatar">{initials(user?.full_name)}</div>
+            <div className="avatar-wrap">
+              <div className="avatar">
+                {avatarUrl ? (
+                  <img src={avatarUrl} alt="avatar" className="avatar-image" />
+                ) : (
+                  initials(user?.full_name)
+                )}
+              </div>
+              <button
+                type="button"
+                className="avatar-upload-btn"
+                onClick={() => fileInputRef.current?.click()}
+                title="Загрузить аватар"
+              >
+                +
+              </button>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                className="avatar-input"
+                onChange={handleAvatarFile}
+              />
+            </div>
             <div className="account-meta">
               <strong>{user?.full_name}</strong>
               <span>{roleLabel(user?.role)}</span>
+              <div className="topbar-level-row">
+                <span className="topbar-level-pill">Ур. {user?.level ?? 1}</span>
+                <span className="topbar-exp">EXP {user?.xp ?? 0}</span>
+              </div>
+              <div className="topbar-level-track">
+                <div className="topbar-level-fill" style={{ width: `${levelProgress}%` }} />
+              </div>
+              <span className="topbar-next-level">До след. уровня: {xpToNext} EXP</span>
             </div>
           </div>
           <button onClick={logout}>Выйти</button>
