@@ -441,6 +441,167 @@ button.primary {
   padding: 8px 0;
 }
 
+.leaderboard-shell {
+  display: grid;
+  gap: 18px;
+}
+
+.leaderboard-intro {
+  display: grid;
+  gap: 4px;
+}
+
+.leaderboard-kicker,
+.leaderboard-note {
+  margin: 0;
+}
+
+.leaderboard-kicker {
+  font-size: 1.1rem;
+  font-weight: 800;
+  color: #0d5a78;
+}
+
+.leaderboard-note {
+  color: #567388;
+  font-size: 0.92rem;
+}
+
+.leaderboard-podium {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.leaderboard-podium-card {
+  position: relative;
+  overflow: hidden;
+  display: grid;
+  gap: 10px;
+  padding: 16px;
+  border-radius: 22px;
+  border: 1px solid #d8e7f7;
+  background: linear-gradient(155deg, #ffffff 0%, #f8fbff 100%);
+  box-shadow: 0 16px 28px rgba(31, 89, 132, 0.14);
+}
+
+.leaderboard-podium-card::before {
+  content: "";
+  position: absolute;
+  width: 120px;
+  height: 120px;
+  top: -50px;
+  right: -34px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(255, 255, 255, 0.65), rgba(255, 255, 255, 0));
+}
+
+.leaderboard-podium-card.gold {
+  border-color: #e3ca73;
+  background: linear-gradient(160deg, #fff7d9 0%, #fff0ba 100%);
+}
+
+.leaderboard-podium-card.silver {
+  border-color: #cdd7e5;
+  background: linear-gradient(160deg, #f8fbff 0%, #e8eef7 100%);
+}
+
+.leaderboard-podium-card.bronze {
+  border-color: #dfb18a;
+  background: linear-gradient(160deg, #fff1e4 0%, #f6d5bb 100%);
+}
+
+.leaderboard-podium-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.leaderboard-medal {
+  font-size: 2rem;
+  line-height: 1;
+}
+
+.leaderboard-place {
+  border-radius: 999px;
+  padding: 5px 10px;
+  font-size: 0.82rem;
+  font-weight: 800;
+  color: #27485a;
+  background: rgba(255, 255, 255, 0.72);
+}
+
+.leaderboard-podium-card h3 {
+  font-family: "Trebuchet MS", "Segoe UI", "Verdana", sans-serif;
+  font-size: 1.08rem;
+}
+
+.leaderboard-podium-xp {
+  margin: 0;
+  font-size: 1.4rem;
+  font-weight: 900;
+  color: #173f55;
+}
+
+.leaderboard-stats,
+.leaderboard-metrics {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.leaderboard-stat-chip,
+.leaderboard-metric {
+  border-radius: 999px;
+  padding: 7px 10px;
+  font-weight: 700;
+  font-size: 0.88rem;
+  color: #1d5978;
+  background: rgba(255, 255, 255, 0.76);
+  border: 1px solid rgba(140, 187, 222, 0.65);
+}
+
+.leaderboard-table {
+  display: grid;
+  gap: 10px;
+}
+
+.leaderboard-table-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 14px 16px;
+  border-radius: 18px;
+  border: 1px solid #cde2f5;
+  background: linear-gradient(150deg, #ffffff 0%, #f7fbff 100%);
+}
+
+.leaderboard-student {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.leaderboard-rank {
+  width: 42px;
+  height: 42px;
+  flex: 0 0 42px;
+  border-radius: 14px;
+  display: grid;
+  place-items: center;
+  font-weight: 900;
+  color: #0e5f84;
+  background: linear-gradient(145deg, #dff1ff 0%, #cde8ff 100%);
+}
+
+.leaderboard-name {
+  font-weight: 800;
+  color: #15364a;
+}
+
 .award-grid {
   display: grid;
   gap: 8px;
@@ -1308,7 +1469,8 @@ button.primary {
 
   .student-metric-grid,
   .student-course-list,
-  .student-achievement-grid {
+  .student-achievement-grid,
+  .leaderboard-podium {
     grid-template-columns: 1fr;
   }
 
@@ -1325,6 +1487,20 @@ button.primary {
 
   .progress-line {
     flex-direction: column;
+  }
+
+  .leaderboard-table-row,
+  .leaderboard-student,
+  .leaderboard-metrics {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .leaderboard-rank {
+    width: auto;
+    height: auto;
+    min-width: 42px;
+    padding: 10px 12px;
   }
 
   .account-badge {

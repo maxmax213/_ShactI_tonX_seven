@@ -190,6 +190,32 @@ function clamp(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, value));
 }
 
+function compareLeaderboardEntries(a: LeaderboardEntry, b: LeaderboardEntry): number {
+  if (b.xp !== a.xp) return b.xp - a.xp;
+  if (b.streak !== a.streak) return b.streak - a.streak;
+  return a.full_name.localeCompare(b.full_name, "ru");
+}
+
+function formatDays(value: number): string {
+  const abs = Math.abs(value) % 100;
+  const last = abs % 10;
+
+  if (abs >= 11 && abs <= 19) return `${value} дней`;
+  if (last === 1) return `${value} день`;
+  if (last >= 2 && last <= 4) return `${value} дня`;
+  return `${value} дней`;
+}
+
+function leaderboardMedalLabel(rank: number): string {
+  if (rank === 1) return "gold";
+  if (rank === 2) return "silver";
+  return "bronze";
+}
+
+const LEVEL_ICON = "\u2605";
+const ACHIEVEMENT_ICON = "\u{1F3C5}";
+const PODIUM_MEDALS = ["\u{1F947}", "\u{1F948}", "\u{1F949}"] as const;
+
 export function StudentDashboard() {
   const { user } = useAuth();
 
@@ -227,6 +253,17 @@ export function StudentDashboard() {
     () => courses.find((course) => course.id === selectedCourseId) ?? null,
     [courses, selectedCourseId],
   );
+
+  const topLeaderboard = useMemo(
+    () =>
+      [...leaderboard]
+        .sort(compareLeaderboardEntries)
+        .slice(0, 10)
+        .map((entry, index) => ({ ...entry, rank: index + 1 })),
+    [leaderboard],
+  );
+
+  const leaderboardChampions = useMemo(() => topLeaderboard.slice(0, 3), [topLeaderboard]);
 
   const selectedModule = useMemo(() => {
     if (!courseTree || selectedModuleId === null) return null;
@@ -1159,17 +1196,69 @@ export function StudentDashboard() {
 
       {activeTab === "leaderboard" && (
         <SectionCard title="Лидерборд">
-          {leaderboard.length === 0 && <EmptyState message="Лидерборд пока пуст" />}
-          {leaderboard.map((entry) => (
-            <div key={entry.user_id} className="leader-row">
-              <span>
-                #{entry.rank} {entry.full_name}
-              </span>
-              <span>
-                уровень {entry.level} · {entry.xp} XP · серия {entry.streak}
-              </span>
+          <div className="leaderboard-shell">
+            <div className="leaderboard-intro">
+              <p className="leaderboard-kicker">Топ 10 учеников по XP</p>
+              <p className="leaderboard-note">Сортировка по XP, затем по серии и по алфавиту.</p>
             </div>
-          ))}
+
+            {topLeaderboard.length === 0 && <EmptyState message="Лидерборд пока пуст" />}
+
+            {topLeaderboard.length > 0 && (
+              <>
+                <div className="leaderboard-podium" aria-label="Первые три места">
+                  {leaderboardChampions.map((entry) => (
+                    <article
+                      key={entry.user_id}
+                      className={`leaderboard-podium-card ${leaderboardMedalLabel(entry.rank)}`}
+                    >
+                      <div className="leaderboard-podium-top">
+                        <span className="leaderboard-medal" aria-hidden="true">
+                          {PODIUM_MEDALS[entry.rank - 1]}
+                        </span>
+                        <span className="leaderboard-place">#{entry.rank}</span>
+                      </div>
+
+                      <h3>{entry.full_name}</h3>
+                      <p className="leaderboard-podium-xp">{entry.xp} XP</p>
+
+                      <div className="leaderboard-stats">
+                        <span className="leaderboard-stat-chip">
+                          {LEVEL_ICON} {entry.level}
+                        </span>
+                        <span className="leaderboard-stat-chip">
+                          {ACHIEVEMENT_ICON} {entry.achievement_count}
+                        </span>
+                        <span className="leaderboard-stat-chip">{formatDays(entry.streak)}</span>
+                      </div>
+                    </article>
+                  ))}
+                </div>
+
+                <div className="leaderboard-table" role="table" aria-label="Таблица лидеров">
+                  {topLeaderboard.map((entry) => (
+                    <div key={entry.user_id} className="leaderboard-table-row" role="row">
+                      <div className="leaderboard-student" role="cell">
+                        <span className="leaderboard-rank">#{entry.rank}</span>
+                        <span className="leaderboard-name">{entry.full_name}</span>
+                      </div>
+
+                      <div className="leaderboard-metrics" role="cell">
+                        <span className="leaderboard-metric">
+                          {LEVEL_ICON} {entry.level}
+                        </span>
+                        <span className="leaderboard-metric">{entry.xp} XP</span>
+                        <span className="leaderboard-metric">
+                          {ACHIEVEMENT_ICON} {entry.achievement_count}
+                        </span>
+                        <span className="leaderboard-metric">{formatDays(entry.streak)}</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </>
+            )}
+          </div>
         </SectionCard>
       )}
     </>

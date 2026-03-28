@@ -35,5 +35,6 @@ class LeaderboardEntry(BaseModel):
     full_name: str
     xp: int
     level: int
+    achievement_count: int
     streak: int
     rank: int

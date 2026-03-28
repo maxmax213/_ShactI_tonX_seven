@@ -1,4 +1,5 @@
 from fastapi import HTTPException, status
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.modules.gamification.models import Achievement, UserAchievement
@@ -71,23 +72,33 @@ class GamificationService:
         ]
 
     def leaderboard(self, db: Session, limit: int = 50) -> list[LeaderboardEntry]:
-        users = (
-            db.query(User)
+        rows = (
+            db.query(
+                User.id,
+                User.full_name,
+                User.xp,
+                User.level,
+                User.streak,
+                func.count(UserAchievement.id).label("achievement_count"),
+            )
+            .outerjoin(UserAchievement, UserAchievement.user_id == User.id)
             .filter(User.role == UserRole.STUDENT)
-            .order_by(User.xp.desc(), User.id.asc())
+            .group_by(User.id, User.full_name, User.xp, User.level, User.streak)
+            .order_by(User.xp.desc(), User.streak.desc(), User.full_name.asc(), User.id.asc())
             .limit(limit)
             .all()
         )
         return [
             LeaderboardEntry(
-                user_id=user.id,
-                full_name=user.full_name,
-                xp=user.xp,
-                level=user.level,
-                streak=user.streak,
+                user_id=row.id,
+                full_name=row.full_name,
+                xp=row.xp,
+                level=row.level,
+                achievement_count=row.achievement_count,
+                streak=row.streak,
                 rank=index,
             )
-            for index, user in enumerate(users, start=1)
+            for index, row in enumerate(rows, start=1)
         ]
 
 
