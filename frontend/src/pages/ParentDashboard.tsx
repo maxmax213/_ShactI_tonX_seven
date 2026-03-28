@@ -15,6 +15,25 @@ function levelProgress(level: number, xp: number): number {
   return clamp(((xp - levelFloor) / 100) * 100, 0, 100);
 }
 
+function initials(fullName: string): string {
+  return fullName
+    .trim()
+    .split(/\s+/)
+    .map((part) => part[0] ?? "")
+    .filter(Boolean)
+    .slice(0, 2)
+    .join("")
+    .toUpperCase();
+}
+
+function childAvatar(studentId: number): string | null {
+  try {
+    return localStorage.getItem(`edu_orbit_avatar_${studentId}`);
+  } catch {
+    return null;
+  }
+}
+
 export function ParentDashboard() {
   const { user } = useAuth();
   const [children, setChildren] = useState<ChildProgress[]>([]);
@@ -65,6 +84,13 @@ export function ParentDashboard() {
           </button>
           {message && <p className="hint">{message}</p>}
         </form>
+
+        <div className="parent-hero-bubbles" aria-hidden="true">
+          <span />
+          <span />
+          <span />
+          <span />
+        </div>
       </section>
 
       <SectionCard
@@ -79,20 +105,47 @@ export function ParentDashboard() {
           <div className="parent-children-grid">
             {children.map((child) => {
               const progress = levelProgress(child.level, child.xp);
+              const avatarUrl = childAvatar(child.student_id);
 
               return (
                 <article key={child.student_id} className="parent-child-card">
+                  <div className="parent-card-orbs" aria-hidden="true">
+                    <span />
+                    <span />
+                  </div>
+
                   <div className="parent-child-head">
-                    <div>
-                      <h3>{child.student_name}</h3>
-                      <p className="parent-child-subtitle">Серия: {child.streak} дн.</p>
+                    <div className="parent-child-identity">
+                      <div className="parent-child-avatar">
+                        {avatarUrl ? (
+                          <img src={avatarUrl} alt={child.student_name} className="parent-child-avatar-image" />
+                        ) : (
+                          <span className="parent-child-avatar-fallback">{initials(child.student_name)}</span>
+                        )}
+                      </div>
+
+                      <div className="parent-child-title">
+                        <h3>{child.student_name}</h3>
+                        <p className="parent-child-subtitle">
+                          <span className="parent-inline-icon streak" aria-hidden="true">
+                            S
+                          </span>
+                          Серия: {child.streak} дн.
+                        </p>
+                      </div>
                     </div>
+
                     <span className="parent-level-badge">Уровень {child.level}</span>
                   </div>
 
                   <div className="parent-exp-block">
                     <div className="parent-exp-row">
-                      <strong>{child.xp} EXP</strong>
+                      <strong className="parent-exp-value">
+                        <span className="parent-inline-icon exp" aria-hidden="true">
+                          XP
+                        </span>
+                        {child.xp} EXP
+                      </strong>
                       <span>Прогресс к след. уровню</span>
                     </div>
                     <div className="parent-exp-track">
@@ -103,21 +156,57 @@ export function ParentDashboard() {
 
                   <div className="parent-child-stats">
                     <div className="parent-stat-tile">
-                      <span>Ачивки</span>
+                      <span className="parent-stat-label">
+                        <span className="parent-stat-icon achievements" aria-hidden="true">
+                          A
+                        </span>
+                        Ачивки
+                      </span>
                       <strong>{child.achievements_count}</strong>
                     </div>
+
                     <div className="parent-stat-tile">
-                      <span>Активные курсы</span>
+                      <span className="parent-stat-label">
+                        <span className="parent-stat-icon courses" aria-hidden="true">
+                          C
+                        </span>
+                        Активные курсы
+                      </span>
                       <strong>{child.active_courses_count}</strong>
                     </div>
+
                     <div className="parent-stat-tile">
-                      <span>Решения</span>
+                      <span className="parent-stat-label">
+                        <span className="parent-stat-icon submissions" aria-hidden="true">
+                          R
+                        </span>
+                        Решения
+                      </span>
                       <strong>{child.total_submissions}</strong>
                     </div>
+
                     <div className="parent-stat-tile">
-                      <span>Средний балл</span>
+                      <span className="parent-stat-label">
+                        <span className="parent-stat-icon score" aria-hidden="true">
+                          B
+                        </span>
+                        Средний балл
+                      </span>
                       <strong>{Number(child.average_score).toFixed(1)}</strong>
                     </div>
+                  </div>
+
+                  <div className="parent-card-actions">
+                    <button
+                      type="button"
+                      className="parent-detail-btn"
+                      title="Раздел с детальной информацией появится позже"
+                    >
+                      <span className="parent-inline-icon details" aria-hidden="true">
+                        GO
+                      </span>
+                      Подробнее
+                    </button>
                   </div>
                 </article>
               );
