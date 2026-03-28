@@ -94,7 +94,7 @@ class UserService:
         if student is None:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail="Student with provided code not found",
+                detail="Ребенок с таким кодом не найден",
             )
 
         return self.create_parent_link(db, parent_id, ParentLinkCreate(student_id=student.id))

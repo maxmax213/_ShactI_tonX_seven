@@ -1,6 +1,6 @@
 import { FormEvent, useEffect, useMemo, useState } from "react";
 
-import { api } from "../app/api";
+import { api, getErrorMessage } from "../app/api";
 import { useAuth } from "../app/auth";
 import {
   createStarterProgram,
@@ -428,7 +428,7 @@ export function StudentDashboard() {
 
   useEffect(() => {
     loadStudentData().catch((err) => {
-      setMessage(`Не удалось загрузить данные ученика: ${String(err)}`);
+      setMessage(`Не удалось загрузить данные ученика: ${getErrorMessage(err)}`);
     });
   }, []);
 
@@ -438,7 +438,7 @@ export function StudentDashboard() {
     api
       .leaderboard()
       .then(setLeaderboard)
-      .catch((err) => setMessage(`Ошибка загрузки лидерборда: ${String(err)}`));
+      .catch((err) => setMessage(`Ошибка загрузки лидерборда: ${getErrorMessage(err)}`));
   }, [activeTab]);
 
   useEffect(() => {
@@ -483,7 +483,7 @@ export function StudentDashboard() {
           return exists ? currentLessonId : null;
         });
       })
-      .catch((err) => setMessage(`Ошибка загрузки структуры курса: ${String(err)}`));
+      .catch((err) => setMessage(`Ошибка загрузки структуры курса: ${getErrorMessage(err)}`));
   }, [selectedCourseId, courseTreesById]);
 
   useEffect(() => {
@@ -526,7 +526,7 @@ export function StudentDashboard() {
     api
       .assignmentComments(activePracticeAssignment.id)
       .then(setComments)
-      .catch((err) => setMessage(`Ошибка загрузки комментариев: ${String(err)}`));
+      .catch((err) => setMessage(`Ошибка загрузки комментариев: ${getErrorMessage(err)}`));
   }, [activePracticeAssignment?.id]);
 
   function lessonProgress(lesson: Lesson): { done: number; total: number } {
@@ -579,7 +579,7 @@ export function StudentDashboard() {
       setTestQuestions(parsed);
       setTestAnswers(initialAnswers(parsed));
     } catch (err) {
-      setMessage(`Не удалось открыть тест: ${String(err)}`);
+      setMessage(`Не удалось открыть тест: ${getErrorMessage(err)}`);
     }
   }
 
@@ -604,7 +604,7 @@ export function StudentDashboard() {
       setPracticeSolution(previousSubmission?.solution_payload ?? defaultPracticeSolution(assignment));
       setBlockProgram(createStarterProgram({ hints: [] }));
     } catch (err) {
-      setMessage(`Не удалось открыть задание: ${String(err)}`);
+      setMessage(`Не удалось открыть задание: ${getErrorMessage(err)}`);
     }
   }
 
@@ -617,7 +617,7 @@ export function StudentDashboard() {
       setMessage("Вы успешно записались на курс");
       await loadStudentData();
     } catch (err) {
-      setMessage(`Не удалось записаться на курс: ${String(err)}`);
+      setMessage(`Не удалось записаться на курс: ${getErrorMessage(err)}`);
     }
   }
 
@@ -631,7 +631,7 @@ export function StudentDashboard() {
       setMessage("Тест отправлен на проверку");
       await refreshProgressData();
     } catch (err) {
-      setMessage(`Не удалось отправить тест: ${String(err)}`);
+      setMessage(`Не удалось отправить тест: ${getErrorMessage(err)}`);
     }
   }
 
@@ -650,7 +650,7 @@ export function StudentDashboard() {
       await refreshProgressData();
       setComments(await api.assignmentComments(activePracticeAssignment.id));
     } catch (err) {
-      setMessage(`Не удалось отправить задание: ${String(err)}`);
+      setMessage(`Не удалось отправить задание: ${getErrorMessage(err)}`);
     }
   }
 
@@ -668,7 +668,7 @@ export function StudentDashboard() {
       setNewComment("");
       setComments(await api.assignmentComments(activePracticeAssignment.id));
     } catch (err) {
-      setMessage(`Ошибка отправки комментария: ${String(err)}`);
+      setMessage(`Ошибка отправки комментария: ${getErrorMessage(err)}`);
     }
   }
 
@@ -835,6 +835,12 @@ export function StudentDashboard() {
                 <div className="student-level-fill" style={{ width: `${expProgress}%` }} />
               </div>
               <p className="student-level-note">Прогресс уровня: {Math.round(expProgress)}%</p>
+              {user?.parent_link_code && (
+                <div className="student-parent-code">
+                  <span className="student-parent-code-label">Код привязки для родителя</span>
+                  <strong className="student-parent-code-value">{user.parent_link_code}</strong>
+                </div>
+              )}
             </div>
             <div className="student-hero-bubbles" aria-hidden="true">
               <span />

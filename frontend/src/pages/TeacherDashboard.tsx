@@ -1,7 +1,7 @@
 import { FormEvent, useEffect, useMemo, useState } from "react";
 
-import { api } from "../app/api";
-import { DEFAULT_BLOCK_ASSIGNMENT_TEMPLATE } from "../app/blockProgramming";
+import { api, getErrorMessage } from "../app/api";
+import { DEFAULT_BLOCK_ASSIGNMENT_TEMPLATE, parseBlockSubmissionPayload } from "../app/blockProgramming";
 import type {
   Assignment,
   AssignmentBrief,
@@ -93,19 +93,17 @@ export function TeacherDashboard() {
     setSelectedCourseId(target);
   }
 
-  async function refreshCourseData(courseId: number) {
-    const [nextTree, nextParticipants] = await Promise.all([api.courseTree(courseId), api.courseParticipants(courseId)]);
-    setTree(nextTree);
-    setParticipants(nextParticipants);
-  }
+    load().catch((err) => setMessage(`Не удалось загрузить данные: ${getErrorMessage(err)}`));
+  }, []);
 
   useEffect(() => {
     refreshCourses().catch((err) => setMessage(`Не удалось загрузить курсы: ${String(err)}`));
   }, []);
 
-  useEffect(() => {
-    if (!selectedCourseId) return;
-    refreshCourseData(selectedCourseId).catch((err) => setMessage(`Ошибка курса: ${String(err)}`));
+    api
+      .courseTree(selectedCourseId)
+      .then(setSelectedTree)
+      .catch((err) => setMessage(`Ошибка загрузки структуры курса: ${getErrorMessage(err)}`));
   }, [selectedCourseId]);
 
   useEffect(() => {
@@ -126,12 +124,8 @@ export function TeacherDashboard() {
       setComments([]);
       return;
     }
-    Promise.all([api.assignmentSubmissions(selectedAssignmentId), api.assignmentComments(selectedAssignmentId)])
-      .then(([nextSubmissions, nextComments]) => {
-        setSubmissions(nextSubmissions);
-        setComments(nextComments);
-      })
-      .catch((err) => setMessage(`Ошибка задания: ${String(err)}`));
+
+    loadAssignmentDetails().catch((err) => setMessage(`Ошибка загрузки решений: ${getErrorMessage(err)}`));
   }, [selectedAssignmentId]);
 
   useEffect(() => {

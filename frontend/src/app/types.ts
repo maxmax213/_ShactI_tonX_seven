@@ -184,6 +184,43 @@ export interface ChildProgress {
   xp: number;
   level: number;
   streak: number;
+  achievements_count: number;
+  active_courses_count: number;
   total_submissions: number;
   average_score: number;
+}
+
+export interface ChildAchievement {
+  achievement_id: number;
+  slug: string;
+  title: string;
+  description: string;
+  rarity: "common" | "rare" | "epic";
+  xp_reward: number;
+}
+
+export interface ChildSubmissionInfo {
+  submission_id: number;
+  assignment_id: number;
+  title: string;
+  assignment_type: "blocks" | "python" | "test";
+  attempt: number;
+  status: "pending" | "checked" | "needs_rework";
+  score: number | null;
+  max_score: number;
+  updated_at: string;
+}
+
+export interface ChildDetail {
+  student_id: number;
+  student_name: string;
+  xp: number;
+  level: number;
+  streak: number;
+  achievements_count: number;
+  active_courses_count: number;
+  total_submissions: number;
+  average_score: number;
+  achievements: ChildAchievement[];
+  submissions: ChildSubmissionInfo[];
 }
