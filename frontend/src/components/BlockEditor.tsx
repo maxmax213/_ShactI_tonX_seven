@@ -1,4 +1,4 @@
-import { DragEvent, useMemo, useState } from "react";
+import { DragEvent, useMemo } from "react";
 
 import type { BlockAssignmentConfig, BlockNode, BlockType } from "../app/blockProgramming";
 import {
@@ -30,8 +30,6 @@ type BlockNodeView = {
 };
 
 export function BlockEditor({ config, value, onChange }: BlockEditorProps) {
-  const [draggingId, setDraggingId] = useState<string | null>(null);
-  const [draggingTemplate, setDraggingTemplate] = useState<BlockType | null>(null);
   const palette = useMemo(() => getPaletteForConfig(config), [config]);
   const generatedCode = useMemo(() => generatePythonFromBlocks(value), [value]);
   const blockTree = useMemo(() => {
@@ -84,14 +82,8 @@ export function BlockEditor({ config, value, onChange }: BlockEditorProps) {
 
   function insertBlock(type: BlockType, index: number) {
     const previousBlock = index > 0 ? value[index - 1] : null;
-    const nextBlock = index < value.length ? value[index] : null;
-    const indent = (() => {
-      if (!previousBlock) return 0;
-      if (nextBlock && nextBlock.indent > previousBlock.indent) {
-        return nextBlock.indent;
-      }
-      return previousBlock.indent;
-    })();
+    const indent =
+      previousBlock && getBlockDefinition(previousBlock.type).opensScope ? previousBlock.indent + 1 : previousBlock?.indent ?? 0;
     const nextBlocks = [...value];
     nextBlocks.splice(index, 0, createBlock(type, { indent }));
     onChange(nextBlocks);
@@ -248,16 +240,12 @@ export function BlockEditor({ config, value, onChange }: BlockEditorProps) {
               </div>
 
               <article
-                className={`workspace-block workspace-block--${definition.category}${
-                  draggingId === node.block.id ? " is-dragging" : ""
-                }`}
+                className={`workspace-block workspace-block--${definition.category}`}
                 draggable
                 onDragStart={(event) => {
                   event.dataTransfer.effectAllowed = "move";
                   event.dataTransfer.setData("application/x-block-id", node.block.id);
-                  setDraggingId(node.block.id);
                 }}
-                onDragEnd={() => setDraggingId(null)}
               >
                 <div className="workspace-block__head">
                   <div>
@@ -332,10 +320,8 @@ export function BlockEditor({ config, value, onChange }: BlockEditorProps) {
     );
   }
 
-  const isDragging = draggingId !== null || draggingTemplate !== null;
-
   return (
-    <div className={`block-editor${isDragging ? " is-dragging" : ""}`}>
+    <div className="block-editor">
       <div className="block-editor__layout">
         <section className="block-editor__panel">
           <div className="block-editor__panel-head">
@@ -360,17 +346,13 @@ export function BlockEditor({ config, value, onChange }: BlockEditorProps) {
               <button
                 key={definition.type}
                 type="button"
-                className={`palette-block palette-block--${definition.category}${
-                  draggingTemplate === definition.type ? " is-dragging" : ""
-                }`}
+                className={`palette-block palette-block--${definition.category}`}
                 draggable
                 onClick={() => insertBlock(definition.type, value.length)}
                 onDragStart={(event) => {
                   event.dataTransfer.effectAllowed = "copy";
                   event.dataTransfer.setData("application/x-block-template", definition.type);
-                  setDraggingTemplate(definition.type);
                 }}
-                onDragEnd={() => setDraggingTemplate(null)}
               >
                 <strong>{definition.label}</strong>
                 <span>{categoryLabel(definition.category)}</span>

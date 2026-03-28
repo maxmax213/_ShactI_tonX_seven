@@ -517,17 +517,25 @@ export function StudentDashboard() {
     }
   }, [selectedLesson?.id]);
 
+  const activeCommentAssignmentId =
+    selectedLessonTab === "theory_test" ? activeTestAssignment?.id ?? null : activePracticeAssignment?.id ?? null;
+
+  async function refreshComments(assignmentId: number): Promise<void> {
+    try {
+      setComments(await api.assignmentComments(assignmentId));
+    } catch (err) {
+      setMessage(`?????? ???????? ????????????: ${String(err)}`);
+    }
+  }
+
   useEffect(() => {
-    if (!activePracticeAssignment) {
+    if (!activeCommentAssignmentId) {
       setComments([]);
       return;
     }
 
-    api
-      .assignmentComments(activePracticeAssignment.id)
-      .then(setComments)
-      .catch((err) => setMessage(`Ошибка загрузки комментариев: ${String(err)}`));
-  }, [activePracticeAssignment?.id]);
+    refreshComments(activeCommentAssignmentId).catch(() => null);
+  }, [activeCommentAssignmentId]);
 
   function lessonProgress(lesson: Lesson): { done: number; total: number } {
     const total = lesson.assignments.length;
@@ -648,7 +656,7 @@ export function StudentDashboard() {
       await api.submitAssignment(activePracticeAssignment.id, payload);
       setMessage("Задание отправлено учителю");
       await refreshProgressData();
-      setComments(await api.assignmentComments(activePracticeAssignment.id));
+      await refreshComments(activePracticeAssignment.id);
     } catch (err) {
       setMessage(`Не удалось отправить задание: ${String(err)}`);
     }
@@ -656,20 +664,21 @@ export function StudentDashboard() {
 
   async function onSendComment(event: FormEvent): Promise<void> {
     event.preventDefault();
-    if (!activePracticeAssignment || !newComment.trim()) return;
+    if (!activeCommentAssignmentId || !newComment.trim()) return;
 
     try {
       await api.createComment({
-        assignment_id: activePracticeAssignment.id,
+        assignment_id: activeCommentAssignmentId,
         content: newComment.trim(),
         parent_comment_id: null,
       });
 
       setNewComment("");
-      setComments(await api.assignmentComments(activePracticeAssignment.id));
+      await refreshComments(activeCommentAssignmentId);
     } catch (err) {
-      setMessage(`Ошибка отправки комментария: ${String(err)}`);
+      setMessage(`?????? ???????? ???????????: ${String(err)}`);
     }
+  }
   }
 
   function onSingleChoiceAnswer(questionId: string, optionId: string): void {
@@ -1175,3 +1184,4 @@ export function StudentDashboard() {
     </>
   );
 }
+
