@@ -51,5 +51,12 @@ def award_achievement(
 
 
 @router.get("/leaderboard", response_model=list[LeaderboardEntry])
-def get_leaderboard(limit: int = 50, db: Session = Depends(get_db)) -> list[LeaderboardEntry]:
-    return gamification_service.leaderboard(db, limit)
+def get_leaderboard(
+    limit: int = 50,
+    period: str = "all_time",
+    include_me: bool = False,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> list[LeaderboardEntry]:
+    include_user_id = current_user.id if include_me else None
+    return gamification_service.leaderboard(db, limit, period, include_user_id)

@@ -24,6 +24,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const { user, logout } = useAuth();
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
+  const showGamification = user?.role === "student";
 
   const avatarStorageKey = useMemo(() => {
     if (!user?.id) return null;
@@ -107,14 +108,18 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             <div className="account-meta">
               <strong>{user?.full_name}</strong>
               <span>{roleLabel(user?.role)}</span>
-              <div className="topbar-level-row">
-                <span className="topbar-level-pill">Ур. {user?.level ?? 1}</span>
-                <span className="topbar-exp">EXP {user?.xp ?? 0}</span>
-              </div>
-              <div className="topbar-level-track">
-                <div className="topbar-level-fill" style={{ width: `${levelProgress}%` }} />
-              </div>
-              <span className="topbar-next-level">До след. уровня: {xpToNext} EXP</span>
+              {showGamification && (
+                <>
+                  <div className="topbar-level-row">
+                    <span className="topbar-level-pill">Ур. {user?.level ?? 1}</span>
+                    <span className="topbar-exp">EXP {user?.xp ?? 0}</span>
+                  </div>
+                  <div className="topbar-level-track">
+                    <div className="topbar-level-fill" style={{ width: `${levelProgress}%` }} />
+                  </div>
+                  <span className="topbar-next-level">До след. уровня: {xpToNext} EXP</span>
+                </>
+              )}
             </div>
           </div>
           <button onClick={logout}>Выйти</button>

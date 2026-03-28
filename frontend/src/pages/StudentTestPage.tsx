@@ -61,13 +61,13 @@ export function StudentTestPage() {
           setMessage("");
         }
       } catch (err) {
-        setMessage(`Не удалось загрузить тест: ${String(err)}`);
+        setMessage(`Не удалось загрузить тест: ${getErrorMessage(err)}`);
       } finally {
         setLoading(false);
       }
     }
 
-    load().catch((err) => setMessage(`Не удалось загрузить тест: ${String(err)}`));
+    load().catch((err) => setMessage(`Не удалось загрузить тест: ${getErrorMessage(err)}`));
   }, [assignmentId, navigate]);
   async function refreshComments(targetAssignmentId: number): Promise<void> {
     try {
@@ -113,7 +113,7 @@ export function StudentTestPage() {
       await api.submitAssignment(assignment.id, JSON.stringify(answers));
       setMessage("Ответы отправлены");
     } catch (err) {
-      setMessage(`Не удалось отправить тест: ${String(err)}`);
+      setMessage(`Не удалось отправить тест: ${getErrorMessage(err)}`);
     } finally {
       setSubmitting(false);
     }
