@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 from app.core.security import hash_password
 from app.modules.assignments.models import Assignment
 from app.modules.courses.models import Course, CourseEnrollment, CourseModule, Lesson
-from app.modules.gamification.models import Achievement
+from app.modules.gamification.models import Achievement, UserAchievement
 from app.modules.users.models import ParentStudentLink, User
 from app.shared.enums import AchievementRarity, AssignmentType, UserRole
 
@@ -365,26 +365,66 @@ def _seed_course(db: Session, teacher: User, student: User) -> None:
     db.commit()
 
 
-def _seed_achievements(db: Session) -> None:
+def _seed_achievements(db: Session) -> dict[str, Achievement]:
     path = Path(__file__).resolve().parents[2] / "seed" / "achievements.json"
     if not path.exists():
-        return
+        return {}
 
     data = json.loads(path.read_text(encoding="utf-8"))
+    achievements_by_slug: dict[str, Achievement] = {}
+
     for item in data:
         exists = db.query(Achievement).filter(Achievement.slug == item["slug"]).first()
         if exists:
+            achievements_by_slug[exists.slug] = exists
             continue
 
-        db.add(
-            Achievement(
-                slug=item["slug"],
-                title=item["title"],
-                description=item["description"],
-                rarity=AchievementRarity(item["rarity"]),
-                xp_reward=item["xp_reward"],
-            )
+        achievement = Achievement(
+            slug=item["slug"],
+            title=item["title"],
+            description=item["description"],
+            rarity=AchievementRarity(item["rarity"]),
+            xp_reward=item["xp_reward"],
         )
+        db.add(achievement)
+        db.flush()
+        achievements_by_slug[achievement.slug] = achievement
+
+    db.commit()
+    return achievements_by_slug
+
+
+def _seed_demo_user_achievements(
+    db: Session,
+    student: User,
+    achievements_by_slug: dict[str, Achievement],
+) -> None:
+    starter_slugs = ("first-code", "perfect-score", "streak-5")
+    added_xp = 0
+
+    for slug in starter_slugs:
+        achievement = achievements_by_slug.get(slug)
+        if achievement is None:
+            continue
+
+        existing = (
+            db.query(UserAchievement)
+            .filter(
+                UserAchievement.user_id == student.id,
+                UserAchievement.achievement_id == achievement.id,
+            )
+            .first()
+        )
+        if existing is not None:
+            continue
+
+        db.add(UserAchievement(user_id=student.id, achievement_id=achievement.id))
+        added_xp += achievement.xp_reward
+
+    if added_xp > 0:
+        student.xp += added_xp
+        student.level = max(1, student.xp // 100 + 1)
+        student.streak = max(student.streak, 5)
 
     db.commit()
 
@@ -392,4 +432,5 @@ def _seed_achievements(db: Session) -> None:
 def ensure_demo_data(db: Session) -> None:
     teacher, student, _ = _seed_users(db)
     _seed_course(db, teacher, student)
-    _seed_achievements(db)
+    achievements_by_slug = _seed_achievements(db)
+    _seed_demo_user_achievements(db, student, achievements_by_slug)
