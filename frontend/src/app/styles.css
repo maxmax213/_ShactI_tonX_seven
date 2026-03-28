@@ -446,9 +446,39 @@ button.primary {
   gap: 18px;
 }
 
+.leaderboard-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
 .leaderboard-intro {
   display: grid;
   gap: 4px;
+}
+
+.leaderboard-filters {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.leaderboard-filter {
+  border-radius: 999px;
+  padding: 8px 14px;
+  border: 1px solid #bfd8ef;
+  background: #f6fbff;
+  color: #31586d;
+  font-weight: 700;
+}
+
+.leaderboard-filter.active {
+  border-color: #0a84ff;
+  background: linear-gradient(135deg, #0a84ff 0%, #2db3ff 100%);
+  color: #fff;
+  box-shadow: 0 10px 20px rgba(10, 132, 255, 0.24);
 }
 
 .leaderboard-kicker,
@@ -537,11 +567,36 @@ button.primary {
   font-size: 1.08rem;
 }
 
+.leaderboard-name-block {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.leaderboard-you-badge {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  padding: 4px 10px;
+  font-size: 0.76rem;
+  font-weight: 800;
+  color: #0b6a47;
+  background: rgba(217, 255, 231, 0.92);
+  border: 1px solid rgba(92, 199, 133, 0.75);
+}
+
 .leaderboard-podium-xp {
   margin: 0;
   font-size: 1.4rem;
   font-weight: 900;
   color: #173f55;
+}
+
+.leaderboard-podium-card.current-user {
+  border-width: 2px;
+  border-color: #51c682;
+  box-shadow: 0 18px 34px rgba(61, 182, 108, 0.22);
 }
 
 .leaderboard-stats,
@@ -567,6 +622,19 @@ button.primary {
   gap: 10px;
 }
 
+.leaderboard-self-wrap {
+  display: grid;
+  gap: 10px;
+  padding-top: 4px;
+}
+
+.leaderboard-self-title {
+  margin: 0;
+  font-size: 0.92rem;
+  font-weight: 800;
+  color: #2b5c4b;
+}
+
 .leaderboard-table-row {
   display: flex;
   align-items: center;
@@ -576,6 +644,17 @@ button.primary {
   border-radius: 18px;
   border: 1px solid #cde2f5;
   background: linear-gradient(150deg, #ffffff 0%, #f7fbff 100%);
+}
+
+.leaderboard-table-row.current-user {
+  border-width: 2px;
+  border-color: #76d49b;
+  background: linear-gradient(150deg, #f8fff9 0%, #eefcf2 100%);
+  box-shadow: 0 14px 26px rgba(60, 182, 108, 0.12);
+}
+
+.leaderboard-self-row {
+  border-style: solid;
 }
 
 .leaderboard-student {
@@ -1472,6 +1551,14 @@ button.primary {
   .student-achievement-grid,
   .leaderboard-podium {
     grid-template-columns: 1fr;
+  }
+
+  .leaderboard-header {
+    flex-direction: column;
+  }
+
+  .leaderboard-filters {
+    justify-content: flex-start;
   }
 
   .student-hero-top {

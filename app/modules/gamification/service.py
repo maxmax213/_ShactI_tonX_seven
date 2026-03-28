@@ -1,14 +1,32 @@
+from datetime import UTC, datetime, timedelta
+
 from fastapi import HTTPException, status
-from sqlalchemy import func
+from sqlalchemy import case, func
 from sqlalchemy.orm import Session
 
 from app.modules.gamification.models import Achievement, UserAchievement
 from app.modules.gamification.schemas import AchievementCreate, LeaderboardEntry, UserAchievementRead
+from app.modules.submissions.models import Submission
 from app.modules.users.models import User
-from app.shared.enums import UserRole
+from app.shared.enums import SubmissionStatus, UserRole
 
 
 class GamificationService:
+    def _period_start(self, period: str) -> datetime | None:
+        now = datetime.now(UTC)
+
+        if period == "all_time":
+            return None
+        if period == "today":
+            return now.replace(hour=0, minute=0, second=0, microsecond=0)
+        if period == "week":
+            start_of_today = now.replace(hour=0, minute=0, second=0, microsecond=0)
+            return start_of_today - timedelta(days=start_of_today.weekday())
+        if period == "month":
+            return now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Unsupported leaderboard period")
+
     def create_achievement(self, db: Session, payload: AchievementCreate) -> Achievement:
         existing = db.query(Achievement).filter(Achievement.slug == payload.slug).first()
         if existing:
@@ -71,24 +89,99 @@ class GamificationService:
             for _, achievement in rows
         ]
 
-    def leaderboard(self, db: Session, limit: int = 50) -> list[LeaderboardEntry]:
-        rows = (
-            db.query(
-                User.id,
-                User.full_name,
-                User.xp,
-                User.level,
-                User.streak,
-                func.count(UserAchievement.id).label("achievement_count"),
+    def leaderboard(
+        self,
+        db: Session,
+        limit: int = 50,
+        period: str = "all_time",
+        include_user_id: int | None = None,
+    ) -> list[LeaderboardEntry]:
+        period_start = self._period_start(period)
+
+        if period_start is None:
+            achievement_count_subquery = (
+                db.query(
+                    UserAchievement.user_id.label("user_id"),
+                    func.count(UserAchievement.id).label("achievement_count"),
+                )
+                .group_by(UserAchievement.user_id)
+                .subquery()
             )
-            .outerjoin(UserAchievement, UserAchievement.user_id == User.id)
-            .filter(User.role == UserRole.STUDENT)
-            .group_by(User.id, User.full_name, User.xp, User.level, User.streak)
-            .order_by(User.xp.desc(), User.streak.desc(), User.full_name.asc(), User.id.asc())
-            .limit(limit)
-            .all()
-        )
-        return [
+
+            rows = (
+                db.query(
+                    User.id,
+                    User.full_name,
+                    User.xp,
+                    User.level,
+                    User.streak,
+                    func.coalesce(achievement_count_subquery.c.achievement_count, 0).label("achievement_count"),
+                )
+                .outerjoin(achievement_count_subquery, achievement_count_subquery.c.user_id == User.id)
+                .filter(User.role == UserRole.STUDENT)
+                .order_by(User.xp.desc(), User.streak.desc(), User.full_name.asc(), User.id.asc())
+                .all()
+            )
+        else:
+            submission_xp_subquery = (
+                db.query(
+                    Submission.student_id.label("user_id"),
+                    func.sum(
+                        case(
+                            (Submission.score.is_(None), 0),
+                            (Submission.score < 5, 5),
+                            else_=Submission.score,
+                        )
+                    ).label("submission_xp"),
+                )
+                .filter(
+                    Submission.status == SubmissionStatus.CHECKED,
+                    Submission.updated_at >= period_start,
+                )
+                .group_by(Submission.student_id)
+                .subquery()
+            )
+
+            achievement_period_subquery = (
+                db.query(
+                    UserAchievement.user_id.label("user_id"),
+                    func.count(UserAchievement.id).label("achievement_count"),
+                    func.sum(Achievement.xp_reward).label("achievement_xp"),
+                )
+                .join(Achievement, Achievement.id == UserAchievement.achievement_id)
+                .filter(UserAchievement.created_at >= period_start)
+                .group_by(UserAchievement.user_id)
+                .subquery()
+            )
+
+            rows = (
+                db.query(
+                    User.id,
+                    User.full_name,
+                    (
+                        func.coalesce(submission_xp_subquery.c.submission_xp, 0)
+                        + func.coalesce(achievement_period_subquery.c.achievement_xp, 0)
+                    ).label("xp"),
+                    User.level,
+                    User.streak,
+                    func.coalesce(achievement_period_subquery.c.achievement_count, 0).label("achievement_count"),
+                )
+                .outerjoin(submission_xp_subquery, submission_xp_subquery.c.user_id == User.id)
+                .outerjoin(achievement_period_subquery, achievement_period_subquery.c.user_id == User.id)
+                .filter(User.role == UserRole.STUDENT)
+                .order_by(
+                    (
+                        func.coalesce(submission_xp_subquery.c.submission_xp, 0)
+                        + func.coalesce(achievement_period_subquery.c.achievement_xp, 0)
+                    ).desc(),
+                    User.streak.desc(),
+                    User.full_name.asc(),
+                    User.id.asc(),
+                )
+                .all()
+            )
+
+        ranked_entries = [
             LeaderboardEntry(
                 user_id=row.id,
                 full_name=row.full_name,
@@ -100,6 +193,16 @@ class GamificationService:
             )
             for index, row in enumerate(rows, start=1)
         ]
+
+        visible_entries = ranked_entries[:limit]
+        if include_user_id is None or any(entry.user_id == include_user_id for entry in visible_entries):
+            return visible_entries
+
+        current_entry = next((entry for entry in ranked_entries if entry.user_id == include_user_id), None)
+        if current_entry is not None:
+            return [*visible_entries, current_entry]
+
+        return visible_entries
 
 
 gamification_service = GamificationService()

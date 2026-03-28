@@ -192,8 +192,13 @@ export const api = {
     });
   },
 
-  leaderboard() {
-    return apiRequest<LeaderboardEntry[]>("/gamification/leaderboard");
+  leaderboard(options?: { period?: "all_time" | "month" | "week" | "today"; limit?: number; includeMe?: boolean }) {
+    const params = new URLSearchParams();
+    if (options?.period) params.set("period", options.period);
+    if (options?.limit !== undefined) params.set("limit", String(options.limit));
+    if (options?.includeMe) params.set("include_me", "true");
+    const query = params.size > 0 ? `?${params.toString()}` : "";
+    return apiRequest<LeaderboardEntry[]>(`/gamification/leaderboard${query}`);
   },
 
   achievements() {
