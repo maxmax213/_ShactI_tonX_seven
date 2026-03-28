@@ -256,6 +256,23 @@ function isKnownBlockType(value: unknown): value is BlockType {
   return typeof value === "string" && value in BLOCK_DEFINITIONS;
 }
 
+const LEGACY_BLOCK_ALIASES: Record<string, BlockType> = {
+  input: "input_variable",
+  print: "print_text",
+  if: "if_condition",
+  elif: "elif_condition",
+  else: "else_branch",
+  while: "while_condition",
+};
+
+function resolveBlockType(value: unknown): BlockType | null {
+  if (isKnownBlockType(value)) return value;
+  if (typeof value === "string" && value in LEGACY_BLOCK_ALIASES) {
+    return LEGACY_BLOCK_ALIASES[value];
+  }
+  return null;
+}
+
 export function getBlockDefinition(type: BlockType): BlockDefinition {
   return BLOCK_DEFINITIONS[type];
 }
@@ -287,16 +304,28 @@ export function parseBlockAssignmentConfig(rawPayload: string | null): BlockAssi
   try {
     const parsed = JSON.parse(rawPayload) as BlockConfigPayload;
     const allowedBlocks = Array.isArray(parsed.allowed_blocks)
-      ? parsed.allowed_blocks.filter(isKnownBlockType)
+      ? parsed.allowed_blocks.map(resolveBlockType).filter((item): item is BlockType => item !== null)
       : undefined;
-    const hints = Array.isArray(parsed.hints) ? parsed.hints.filter((item): item is string => typeof item === "string") : [];
+    const hints = Array.isArray(parsed.hints)
+      ? parsed.hints.filter((item): item is string => typeof item === "string")
+      : typeof (parsed as { hint?: unknown }).hint === "string"
+        ? [String((parsed as { hint?: unknown }).hint)]
+        : [];
     const goal = typeof parsed.goal === "string" ? parsed.goal : undefined;
     const starterBlocks = Array.isArray(parsed.starter_blocks)
       ? parsed.starter_blocks
           .map((block, index) => {
+            if (typeof block === "string") {
+              const type = resolveBlockType(block);
+              if (!type) return null;
+              const indent = index === 0 ? 0 : undefined;
+              return createBlock(type, { indent });
+            }
+
             if (!block || typeof block !== "object") return null;
             const candidate = block as { type?: unknown; indent?: unknown; params?: unknown };
-            if (!isKnownBlockType(candidate.type)) return null;
+            const type = resolveBlockType(candidate.type);
+            if (!type) return null;
 
             const params =
               candidate.params && typeof candidate.params === "object"
@@ -305,7 +334,7 @@ export function parseBlockAssignmentConfig(rawPayload: string | null): BlockAssi
                   )
                 : undefined;
             const indent = typeof candidate.indent === "number" ? candidate.indent : index === 0 ? 0 : undefined;
-            return createBlock(candidate.type, { indent, params });
+            return createBlock(type, { indent, params });
           })
           .filter((block): block is BlockNode => block !== null)
       : undefined;
