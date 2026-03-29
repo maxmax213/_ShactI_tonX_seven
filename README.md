@@ -1,4 +1,5 @@
 # Oren Hack: Edu Platform
+Ссылка на архив с презентацией и видео защиты: https://cloud.mail.ru/public/48kg/fiFKzBtqJ
 
 ## Запуск проекта (Docker)
 
